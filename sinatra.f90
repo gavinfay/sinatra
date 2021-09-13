@@ -2,7 +2,7 @@
 !SESSF Operating Model
 !as per BET_opmod_GF.doc
 !Gavin Fay
-!Last Updated 6th July 2018
+!Last Updated September 2021
 !
 !Requires following files for successful compilation:
 !   Common.FOR
@@ -59,9 +59,8 @@
 !		call to Sinatra or (E) Testsinatra
 !		the model then runs the historical projection
 !		and generates the historical data
-!10		return to R controller program
-!				 - conducts assessment
-!				 - calculates RBC
+!10		  - conducts assessment
+!		  - calculates RBC
 !		call to sinatranew for a projection
 !		 -	length of projection depends on input frequency of assessment
 !		sinatranew calls futureproj, does a population projection given RBC and timespan of that RBC 
@@ -69,7 +68,6 @@
 !		if not at end of projection period
 !			go to 10
 !		else
-!			return to R controller
 !			calculate and store performance metrics for simulation
 !     }
 !
@@ -89,9 +87,12 @@
 !	returns values for time-carying components (inlcuding Numbers at age) for last year
 !*****************************************************************************************
 !***	*over view of Future projection
-!	Call to Sinatranew passes: values in current year for N@age, Selectivity, Growth, etc.
+!	Finds what type of assessment / control rule to apply
+!     runs assessment model
+!     applies control rule to generate RBC
+!   Call to Sinatranew passes: values in current year for N@age, Selectivity, Growth, etc.
 !							   duration of projection (determined by frequency of assessment)
-!	ReadIn : gets specifications again (not needed if run as executable without R program)
+!   Reads in RBC - turns into catch (by fleet)
 !	Futureproj : does projection by calling popupdate
 !	FindNewData : generates the data for the projection period as per FindHistdata, appends to *.inp files
 !	

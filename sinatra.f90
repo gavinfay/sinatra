@@ -938,6 +938,10 @@
     ENDIF
 
 
+    !!! 2021/07/15  writing out length-structure for Lou's model
+    CALL GetFishOMLength(Yr2)
+
+
 !# Initial year regulations (season length, bag limit, minimum size)
 !RHL in function is in million pounds
 !0.00220462
@@ -964,6 +968,38 @@
 
 	END
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!   This subroutine gets the OM fishery length comp data 
+!
+	SUBROUTINE GetFishOMLength(Iyr)
+
+	IMPLICIT NONE
+	INCLUDE 'Sinatra.INC'
+
+	INTEGER Iyr,II,JJ,Nlens(Nflt,Nreg,1:2),Age,Iflt,Ireg,Sex,Ilen,Part,ISEED1,ISEED2
+	REAL*8 TempCatch(Nflt,Nreg,1:2),LenComp(2000),LenProps(2000),EmptySex(Nlen)
+	REAL*8 PropVec(2000),NewVec(2000)
+
+	OPEN(UNIT=10,FILE='om-length.dat')
+
+		!loop over fleets and regions and sex
+		DO 88601 Iflt=1,Nflt
+		 DO 88601 Ireg=1,Nreg
+		  DO 88601 Sex=1,2
+		   !get expected proportions
+		   CALL GetLenProps(1,2,Iflt,Ireg,Sex,Iyr,LenProps)
+		   !write the comp to the output file
+		   WRITE(10,'(I4,1x,I2,1x,I2,1x,I1,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,(LenProps(Ilen),Ilen=1,Nlen)
+88601	CONTINUE
+
+    CLOSE(10)
+
+    RETURN
+
+    STOP
+
+    END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -3878,6 +3914,7 @@
  !     N(Istk,Ireg,Sex,0,Fyear) = N(Istk,Ireg,Sex,0,Fyear)/Temp
 !	  N(Istk,Ireg,Sex,1:MaxAge,Fyear) = N(Istk,Ireg,Sex,0,Fyear)*TempVec(1:MaxAge)
 !611 CONTINUE
+
 	 
 	!print out initial age structure
 	IF (Diag.EQ.1) THEN
@@ -3902,6 +3939,19 @@
 	   IF (SUM(ABS(RecDevs(1:Nreg,Fyear))).NE.0) N(Istk,1:Nreg,Sex,0,Fyear) = N(Istk,1:Nreg,Sex,0,Fyear)*EXP(RecDevs(1:Nreg,Fyear)-0.5*(SigmaR(Fyear)**2.d0))
 619	  CONTINUE
      ENDIF
+    !10/05/2021 change to input N at age from file
+    IF (RecDevFlag(1).EQ.2) THEN
+     OPEN(UNIT=15, FILE='init-natage.inp')
+     READ(15,*)
+     READ(15,*) (TempVec(Age),Age=0,MaxAge)
+     CLOSE(15)
+     !WRITE(*,*) (TempVec(Age),Age=0,MaxAge)
+     !DO 620 Istk=1,Nstk
+      DO 620 Sex=1,2
+       DO 620 Ireg=1,Nreg
+        N(Istk,Ireg,Sex,0:MaxAge,Fyear) = 0.5d0*TempVec(0:MaxAge)
+620  CONTINUE
+    ENDIF
 	 IF (Diag.EQ.1) THEN
 	  DO 617 Ireg=1,Nreg
 	   DO 617 Sex=1,2

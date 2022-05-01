@@ -108,7 +108,7 @@
 	INCLUDE 'Sinatra.INC'
 
 !   LOCAL VARIABLES
-	INTEGER OpScen(1000),II,Iproj,Yr2,Yr1,Isim  !,Nsim
+	INTEGER OpScen(1000),II,Iproj,Yr2,Yr1,Isim,Age,Ilen  !,Nsim
     CHARACTER*25 OpModFile
 	REAL*8 DUM
 
@@ -152,17 +152,39 @@
 	WRITE(121,'(1000(I4,1x))') (II,II=Fyear,Lyear+HCRspecs(1))
     CLOSE(121)
     OPEN (UNIT=122,FILE='totcatch.out')
-	WRITE(122,'(1000(I4,1x))') (II,II=Fyear,Lyear+HCRspecs(1))
+	WRITE(122,'(A2,1x,1000(I4,1x))') "FL",(II,II=Fyear,Lyear+HCRspecs(1))
     CLOSE(122)
     OPEN (UNIT=123,FILE='exprate.out')
 	WRITE(123,'(A2,1x,1000(I4,1x))') "FL",(II,II=Fyear,Lyear+HCRspecs(1))
     CLOSE(123)
+    OPEN (UNIT=121,FILE='frate.out')
+	WRITE(121,'(1000(I4,1x))') (II,II=Fyear,Lyear+HCRspecs(1))
+    CLOSE(121)
     OPEN (UNIT=123,FILE='rbctrack.out')
 	WRITE(123,'(A32)') 'Isim, Iproj, estF, RBC(1),RBC(2)'
     CLOSE(123)
     OPEN (UNIT=123,FILE='nvec.out')
 	WRITE(123,'(A32)') 'Isim, R0, SB0, Natage by sex'
     CLOSE(123)
+    OPEN (UNIT=123,FILE='recoutput.out')
+	WRITE(123,'(A32)') 'Isim, Iproj, Type, Num, NumLen'
+    CLOSE(123)
+    OPEN (UNIT=123,FILE='recoutput2.out')
+	WRITE(123,'(A32)') 'Isim, Iproj, performance metrics'
+    CLOSE(123)
+    OPEN (UNIT=123,FILE='refpts.out')
+	WRITE(123,'(A32)') 'Isim, Ftarg, Btarg'
+    CLOSE(123)
+
+   	OPEN(UNIT=31,FILE='FisheryAges2019.out')   ! POSITION='APPEND'
+	WRITE(31,'(A20,200(I4,1x))') 'Year Ft Rg S T Nsamp',(Age,Age=0,MaxAge) 
+	OPEN(UNIT=32,FILE='FisheryLengths2019.out')   ! POSITION='APPEND'
+	WRITE(32,'(A21,1x,200(F6.2,1x))') 'Year Ft Rg S T  Nsamp',(lolenbin(Ilen),Ilen=1,Nlen) 
+	OPEN(UNIT=33,FILE='SelAge2019.out')
+	WRITE(33,'(A12,1x,100(I6,1x))') 'fl Stk S  Yr',(Age,Age=0,MaxAge)
+    CLOSE(31)
+    CLOSE(32)
+    CLOSE(33)
 
 
 !	GLOBAL FLAG IDENTIFYING READ IN FROM POSTERIOR RATHER THAN USE SINATRA.CTL VALUES
@@ -213,13 +235,14 @@
 
 !	DO HISTORICAL PROJECTION
 	WRITE(99,*) 'Starting Historical Projection'
-	CALL HistProj()
+	CALL HistProj(Isim)
 	WRITE(99,*) 'Historical Projection finished'
 
 !	GET HISTORICAL DATA
 	CALL FindHistData()
 !call estimation model & do harvest strategy
 !      CALL EstMod(Yr2,Isim)   going to need this here for sim testing....
+
 
 	IF (HCRspecs(3).EQ.1.OR.HCRspecs(3).EQ.8) THEN
 	! OPEN(UNIT=18,FILE='forereport.out')
@@ -259,7 +282,7 @@
       !get.alloc(hcr$alloc.yrs,nfleet,nregion)
 
   	  !future projection
-	  CALL FutureProj(Yr1,Yr2)
+	  CALL FutureProj(Isim,Iproj,Yr1,Yr2)
       !GET FUTURE DATA
 	  CALL FindNewData(Yr1,Yr2)
 
@@ -339,19 +362,35 @@
 
 	IMPLICIT NONE
 	INTEGER Iyr,Yr2,Iflt
+    REAL*8 pCatch(1:10),Utemp(Fyear:Yr2),Ftemp(Fyear:Yr2) 
 
 	INCLUDE 'Sinatra.INC'
 	
+    DO Iyr=Fyear,Yr2
+     CALL GetSpawBio(Iyr)
+    ENDDO
+
 	OPEN(UNIT=18,FILE='spawbio.out',POSITION='APPEND')
 	WRITE(18,'(1000(F10.2,1x))') (SUM(SpawBio(1:Nstk,0,Iyr)),Iyr=Fyear,Yr2)
 	CLOSE(18)
 	OPEN(UNIT=18,FILE='totcatch.out',POSITION='APPEND')
-	WRITE(18,'(1000(F10.2,1x))') (SUM(RetCatch(1:Nflt,1:Nreg,Iyr)),Iyr=Fyear,Yr2)
+	DO Iflt=1,Nflt
+	WRITE(18,'(I2,1x,1000(F10.2,1x))') Iflt,(SUM(RetCatch(Iflt,1:Nreg,Iyr)),Iyr=Fyear,Yr2)
+	ENDDO
 	CLOSE(18)
 	OPEN(UNIT=18,FILE='exprate.out',POSITION='APPEND')
 	DO Iflt=1,Nflt
 	WRITE(18,'(I2,1x,1000(F10.7,1x))') Iflt,(Ufleet(Iflt,1:Nreg,Iyr),Iyr=Fyear,Yr2)
 	ENDDO
+	CLOSE(18)
+	!add F
+	DO Iyr = Fyear, Yr2
+	 pCatch(1:Nflt) = RetCatch(1:Nflt,1,Iyr)/SUM(RetCatch(1:Nflt,1,Iyr))
+	 Utemp(Iyr) = SUM(pCatch(1:Nflt)*TotalCatch(1:Nflt,1,Iyr)/RetVBio(1:Nflt,1,Iyr))
+	ENDDO
+	Ftemp(Fyear:Yr2) = -1.d0*LOG(1.d0-Utemp(Fyear:Yr2))
+	OPEN(UNIT=18,FILE='frate.out',POSITION='APPEND')
+	WRITE(18,'(1000(F10.7,1x))') (Ftemp(Iyr),Iyr=Fyear,Yr2)
 	CLOSE(18)
 
 	RETURN
@@ -388,6 +427,9 @@
 	IF (HCRspecs(3).EQ.51) CALL DoTier51(Yr2,Iproj2)
 	!! Fluke rec management with pseudo-assessment
 	IF (HCRspecs(3).EQ.61) CALL DoTier61(Yr2,Iproj2)
+	!! coupled ecol-econ model for fluke recreational management with pseudo-assessment
+	IF (HCRspecs(3).EQ.62) CALL DoTier62(Yr2,Isim2,Iproj2)
+
 
     !WRITE(*,*) 'GAV1'
 
@@ -527,11 +569,11 @@
 
 	IMPLICIT NONE
     !INTEGER Yr2,Iproj2,II,Ftype,Iyr,Ilen,Age,Iflt,Sex
-    !REAL*8 Muse,Fref,Bref(2),Temp(2),Ftarg,Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen,Mbase
+    !REAL*8 Muse,Fref,Bref(2),Temp(2),Ftarg,Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen,Mbase
 	!modded local variables as now globals so only evl inputs on proj 1. 
 	!not implemented in here, just for 51, change here for bookkeeping
 	INTEGER Yr2,Iproj2,II,Iyr,Ilen,Age,Iflt,Sex
-	REAL*8 Muse,Temp(2),Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen
+	REAL*8 Muse,Temp(2),Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen
 
 	EXTERNAL GetFtarg
 
@@ -598,13 +640,13 @@
 	DO Iflt=1,Nflt
 	!WRITE(*,*) pCatch(Iflt)
 	DO Age=0,MaxAge
- 	 pSelAge(Age) = pSelAge(Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
+ 	 pSelAge(1,Age) = pSelAge(1,Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
 	ENDDO
 	ENDDO
 
 	!get the FMSY ref point
 	!Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge,Mbase)
-	Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge)
+	Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge,1)
 	!WRITE(*,*) Ftarg
 	EstQuant(2) = Ftarg
 	
@@ -634,6 +676,631 @@
 
 	END
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!! This subroutine does the fluke assessment & control that links with Lou Carr-Harris' behavior model
+!!!!!! As needed for the 2021/22 MAFMC summer flounder MSE
+
+    SUBROUTINE DoTier62(Yr2,Isim2,Iproj2)
+
+	IMPLICIT NONE
+	INTEGER Yr2,Isim2,Iproj2,II,Iyr,Ilen,Age,Iflt,Sex,Ireg,MGtype,Nstate,Impltype,RHLnum,ScaleFlag,Istk
+	REAL*8 Muse,Temp(4),Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen
+	REAL*8 RHL,CatEst,Recadjust,MRIPest,Regpar(1:3,1:10),NewDev
+	REAL*8 XNORM
+	REAL*8 loAdjust, hiAdjust
+    CHARACTER*100 FLUKE
+    REAL*8 MYVAL(5),LenProps(2000),MuWt
+    CHARACTER*2 States(10)
+	DOUBLE PRECISION PCUM,ZSCORE
+	DOUBLE PRECISION dinvnr
+
+	EXTERNAL dinvnr
+	EXTERNAL XNORM
+	EXTERNAL GetFtarg
+
+	INCLUDE 'Sinatra.INC'
+
+	!get specifications
+	OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+
+    READ(13,*)
+	DO II =1,4
+	 READ(13,*)
+	 READ(13,*) PseudoRefSpecs(II)
+	ENDDO
+	READ(13,*)
+	READ(13,*) Ftype
+	READ(13,*)
+	READ(13,*) Muse
+	READ(13,*)
+	READ(13,*) Fref
+	READ(13,*)
+	READ(13,*) Bref(1),Bref(2)
+	READ(13,*)
+	READ(13,*) Mbase
+	READ(13,*)
+	READ(13,*) RHLfrac
+	READ(13,*)
+	READ(13,*) MGtype
+	READ(13,*)
+	READ(13,*) Impltype
+	READ(13,*)
+	IF (Iproj2.EQ.1) THEN
+	 READ(13,*) (CurrRegs(II),II=1,3)
+	ELSE
+	 READ(13,*)
+	ENDIF
+	CLOSE(13)
+
+    !IF (Iproj2.EQ.1) THEN
+    
+    !Get the OM quantities of interest
+    CALL GetRefPts(Isim2,Muse,Yr2)
+    
+    !ENDIF
+
+	EstQuant(3) = OMrefpts(1)
+	EstQuant(12) = OMrefpts(3)
+    EstQuant(7) = OMrefpts(2)
+
+
+	 WRITE(*,*) EstDep
+	 WRITE(*,*) EstQuant(1)
+
+    !EstQuant(1) is the estimate of F
+
+	!WRITE(*,*) Muse
+	!WRITE(*,*) Fref
+	!WRITE(*,*) Bref(1:2)
+
+	
+	EstQuant(2) = OMrefpts(1)
+	Ftarg = OMrefpts(1)
+
+	!get the Fuse
+    Fuse = Ftarg
+	EstQuant(3) = Fuse
+
+	Temp(1) = 0.d0
+	!get the true OFL
+	DO Ilen=1,Nlen
+	 pRetLen = 1.d0 !SUM(RetLen(1:Nflt,Ilen,Yr2)*pCatch(1:Nflt))
+	 DO Sex=1,2
+	  DO Age=0,MaxAge
+	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(N(1,1:Nreg,Sex,Age,Yr2+1)*EXP(-0.5d0*M(1,1:Nreg,Sex,Age,Yr2)))*(1.d0-EXP(-1.d0*OMrefsel(Sex,Age)*Fuse))
+	  ENDDO
+	 ENDDO
+	ENDDO
+	!WRITE(*,*) 'tOFL ',Temp(1)
+    !Temp(1) now contains the true OFL
+    EstQuant(5) = Temp(1)
+
+    !get estimated OFL
+	Istk=1
+	Temp(2) = Temp(1)
+	Temp(3) = SQRT(LOG(1.d0+PseudoRefSpecs(1)*PseudoRefSpecs(1)))
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XNORM(5,0.d0,Temp(3),ISEEDX)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(1) 
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XNORM(5,0.d0,Temp(3),ISEEDX)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(1) = NewDev
+	Temp(1) = Temp(1)*EXP(NewDev-0.5*(Temp(3)**2.d0))
+    !WRITE(*,*) Temp(3), PseudoRefSpecs(3)
+    !WRITE(*,*) 'eOFL ',Temp(1)
+
+    !Temp(1) now contains the estimated OFL
+    EstQuant(4) = Temp(1)
+
+    !calculate the adjustment needed
+    !!!!! hardwire Pstar at 0.45 !!!!
+     PCUM = 0.45 
+     ZSCORE = dinvnr(PCUM,1.d0-PCUM)
+     Temp(1) = LOG(Temp(1))+ZSCORE*SQRT(LOG(1.d0+(Pseudorefspecs(2)*Pseudorefspecs(2))))
+     Temp(1) = EXP(Temp(1))
+
+    EstQuant(1) = Temp(1)
+    EstQuant(8) = Temp(1)
+
+    !do allocation by rec / comm
+    ! GF 07/25/19 HARDWIRING REC FLEETS HERE! CHANGE!!! 
+    !WRITE(*,*) 'RHLf ', RHLfrac
+    RHL = RHLfrac*Temp(1)
+    !WRITE(*,*) 'RHL ', RHL
+    EstQuant(6) = RHL    
+
+    RECadjust = 1.0
+
+    !!!
+    !!implementation model to mgmt regs goes here!
+    ! for now, assume that adjustment is made to the catch from last year and that that is the catch that gets made.
+    IF (ImplType.EQ.0) EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + RECadjust*SUM(RetCatch(3:4,1:Nreg,Yr2))
+    !!!
+    IF (ImplType.EQ.1) THEN
+     EstRBC = 0.d0
+     CurrRegs(1) = MIN(365.d0,CurrRegs(1)*RECadjust)
+     DO II=1,Nstate
+      !WRITE(*,*) II,EstRBC(1),EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)+XNORM(5,0.d0,Regpar(3,II),ISEEDX))
+      EstRBC(2) = EstRBC(2) + MAX(0.01d0, EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)))/1000.d0
+      EstRBC(1) = EstRBC(1) + MAX(0.01d0, EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)+XNORM(5,0.d0,Regpar(3,II),ISEEDX)))/1000.d0
+     ENDDO
+     EstQuant(9) = CurrRegs(1)
+     EstQuant(10) = EstRBC(2)
+     EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + EstRBC(1)
+    ENDIF
+
+    
+    !!!! READ IN MANAGEMENT MODEL
+
+    !!!! 2019/08/09  management model to get new regs
+    IF (ImplType.EQ.2) THEN
+      
+
+       !Define RHL in numbers
+       CALL GetLenProps(1,1,3,1,1,Yr2,LenProps)
+       !WRITE(*,*) (LenProps(II),II=1,Nlen)
+       !WRITE(*,*) (WtLen(II,1,1),II=1,Nlen)
+       MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
+       !WRITE(*,*) MuWt
+       !STOP
+       RHLnum = NINT(1000.d0*RHL/MuWt)
+       WRITE(*,*) RHL,RHLnum
+       !STOP
+
+      IF (RecAdjust.EQ.1.d0) THEN
+       EstQuant(13) = 0.d0
+       GOTO 4125
+      ENDIF
+
+      ScaleFlag = 2
+      IF (MGtype.EQ.5) ScaleFlag = 1
+
+      WRITE(*,*) (CurrRegs(II),II=1,3)
+      WRITE(FLUKE,'(A28,1x,I2,1x,F4.1,1x,I3,1x,F5.3,1x,I10,1x,I1)') 'Rscript R/management_model.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1)),RECadjust,RHLnum,ScaleFlag
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='mgmt_regs.out')
+      DO II=1,3
+       READ(10,*) MYVAL(II)
+      ENDDO
+      DO II=12,14
+       READ(10,*) EstQuant(II)
+      ENDDO
+      CLOSE(10)
+      WRITE(*,*) (MYVAL(II),II=1,3)
+      CurrRegs(2) = MYVAL(1)
+      CurrRegs(3) = MYVAL(2)
+      CurrRegs(1) = MYVAL(3)      
+
+4125  CONTINUE
+
+      EstQuant(9:11) = CurrRegs(1:3)
+
+     EstRBC = 0.d0
+ !    WRITE(FLUKE,'(A34,1x,I2,1x,F4.1,1x,I3)') 'Rscript R/FunctionforOM_20190809.R',NINT(MYVAL(1)),MYVAL(2),NINT(MYVAL(3))
+     WRITE(FLUKE,'(A34,1x,I2,1x,F4.1,1x,I3)') 'Rscript R/FunctionforOM_20190809.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1))
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='recland.out')
+      READ(10,*) MYVAL(4),MYVAL(5)
+      CLOSE(10)
+      WRITE(*,*) MYVAL(4),MYVAL(5)
+
+      EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + MYVAL(4)*MuWt/1000.d0   !RECadjust*SUM(RetCatch(3:4,1:Nreg,Yr2))
+      WRITE(*,*) (1.d0-RHLfrac)*Temp(1)
+      EstQuant(15) = MYVAL(4)*MuWt/1000.d0
+      CALL GetLenProps(1,1,4,1,1,Yr2,LenProps)
+      MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
+      EstRBC(2) = EstRBC(2) + MYVAL(5)*MuWt/1000.d0
+      EstQuant(16) = MYVAL(5)*MuWt/1000.d0
+      WRITE(*,*) EstRBC(2)
+     !STOP
+    ENDIF
+    
+
+    !!!! 2019/02/22  interfacing with R-based fleet dynamics model
+    IF (ImplType.EQ.-1) THEN
+     EstRBC = 0.d0
+     CurrRegs(1) = MIN(365.d0,CurrRegs(1)*RECadjust)
+     WRITE(*,*) CurrRegs(1)
+     DO II=1,Nstate
+      WRITE(FLUKE,'(A25,1x,A2,1x,I2,1x,I2,1x,I3,1x,F7.2,1x,I4,1x,I1)') 'Rscript R/FunctionforOM.R',States(II),NINT(0.393701*CurrRegs(3)),NINT(CurrRegs(2)),NINT(CurrRegs(1)),RHL*0.00220462,2017,2
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='recland.out')
+      READ(10,*) MYVAL
+      CLOSE(10)
+      WRITE(*,*) MYVAL
+     ENDDO
+     !STOP
+    ENDIF
+
+
+    !! 2021/12/10 coupling to Lou's model 
+    !! 2022/02/11 don't need to run here because reg table is hard-wired.
+    IF (ImplType.EQ.3) THEN
+
+     !write table of input regulations 
+     !WRITE(FLUKE,'(A31,1x,I2,1x,I2,1x,I3)') 'Rscript write-rec-regulations.R',NINT(CurrRegs(3)),NINT(CurrRegs(2)),NINT(CurrRegs(1))
+     !WRITE(*,*) FLUKE
+     !CALL SYSTEM(FLUKE)
+     
+     !!! 2021/07/15  writing out length-structure for Lou's model
+!     WRITE(*,*) "OM Length structure"
+!     CALL GetFishOMLength(Yr2)
+
+     EstRBC(2) = Temp(1)
+
+ !    STOP
+     !Run Lou's model
+     !!!!!!!
+    ENDIF
+
+	!EstRBC(2) = Temp(1)
+	!EstRBC(2) = SUM(RetCatch(1:Nflt,1:Nreg,Yr2))*(1.d0-EXP(-1.d0*Fuse))/(1.d0-EXP(-1.d0*EstQuant(1)))
+	EstRBC(1) = EstRBC(2)
+
+
+	RETURN
+
+	STOP
+
+	END
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!! This subroutine does the fluke assessment & control that links with Lou Carr-Harris' behavior model
+!!!!!! As needed for the 2021/22 MAFMC summer flounder MSE
+
+    SUBROUTINE DoTier63(Yr2,Isim2,Iproj2)
+
+	IMPLICIT NONE
+	INTEGER Yr2,Isim2,Iproj2,II,Iyr,Ilen,Age,Iflt,Sex,Ireg,MGtype,Nstate,Impltype,RHLnum,ScaleFlag
+	REAL*8 Muse,Temp(4),Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen
+	REAL*8 RHL,CatEst,Recadjust,MRIPest,Regpar(1:3,1:10)
+	REAL*8 XNORM
+	REAL*8 loAdjust, hiAdjust
+    CHARACTER*100 FLUKE
+    REAL*8 MYVAL(5),LenProps(2000),MuWt
+    CHARACTER*2 States(10)
+	DOUBLE PRECISION PCUM,ZSCORE
+	DOUBLE PRECISION dinvnr
+
+	EXTERNAL dinvnr
+	EXTERNAL XNORM
+	EXTERNAL GetFtarg
+
+	INCLUDE 'Sinatra.INC'
+
+	!get specifications
+	OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+
+	DO II =1,10
+	 READ(13,*)
+	ENDDO
+	READ(13,*) Ftype
+	READ(13,*)
+	READ(13,*) Muse
+	READ(13,*)
+	READ(13,*) Fref
+	READ(13,*)
+	READ(13,*) Bref(1),Bref(2)
+	READ(13,*)
+	READ(13,*) Mbase
+	READ(13,*)
+	READ(13,*) RHLfrac
+	READ(13,*)
+	READ(13,*) MGtype
+	READ(13,*)
+	READ(13,*) Impltype
+	READ(13,*)
+	IF (Iproj2.EQ.1) THEN
+	 READ(13,*) (CurrRegs(II),II=1,3)
+	ELSE
+	 READ(13,*)
+	ENDIF
+	CLOSE(13)
+
+    IF (Iproj2.EQ.1) THEN
+     CALL GetRefPts(Isim2,Muse,Yr2)
+    ENDIF
+
+	IF (Muse.LT.0) THEN
+	 II = Yr2+NINT(Muse)+1
+     !WRITE(*,*) Yr2,Muse,II,NINT(Muse)
+	 IF (II.LT.Fyear) II=Fyear
+	 Muse = SUM(M(1,1,1,MaxAge,II:Yr2))/(Yr2-II+1)
+	 !WRITE(*,*) M(1,1,1,MaxAge,Yr2),Muse	 
+	ENDIF
+	EstQuant(4) = Muse
+	EstQuant(5) = M(1,1,1,MaxAge,Yr2)
+	IF (Mbase.GE.1) THEN
+	 II=Yr2-NINT(Mbase)+1
+	 IF (II.LT.Fyear) II=Fyear
+	 Mbase = SUM(M(1,1,1,MaxAge,II:Yr2))/(Yr2-II+1)
+	ENDIF
+	IF (Mbase.GT.0) EstQuant(6) = Mbase
+
+	 !get current year's quantities
+	 OPEN(UNIT=13,FILE='estB.inp')
+	 READ(13,*)
+4121 READ(13,*,END=4120,ERR=4120) Iyr,Temp(1),Temp(2),Temp(4)
+	 IF (Iyr.EQ.Yr2) THEN
+	  EstDep = Temp(1)
+	  EstQuant(1) = Temp(2)
+	  GOTO 4120
+	 ENDIF
+	 GOTO 4121
+4120 CONTINUE
+	 CLOSE(13)
+
+	 WRITE(*,*) EstDep
+	 WRITE(*,*) EstQuant(1)
+
+
+
+	!WRITE(*,*) Muse
+	!WRITE(*,*) Fref
+	!WRITE(*,*) Bref(1:2)
+
+	!goal is to get the expected proportions by fleet to calculate the ABC.
+
+	pCatch = 0.d0
+	DO Iflt=1,Nflt
+     pCatch(Iflt) = SUM(RetCatch(Iflt,1:Nreg,Yr2))
+	ENDDO
+	pCatch(1:Nflt) = pCatch(1:Nflt)/SUM(pCatch(1:Nflt))
+	
+	Sex=1
+	pSelAge =0.d0
+	DO Iflt=1,Nflt
+	!WRITE(*,*) pCatch(Iflt)
+	DO Age=0,MaxAge
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
+	ENDDO
+	ENDDO
+
+	!get the FMSY ref point
+	!Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge,Mbase)
+	!Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge)
+	Ftarg = Temp(4)
+	WRITE(*,*) Ftarg
+	EstQuant(2) = Ftarg
+	
+	!get the Fuse
+	Fuse =0.d0
+	!IF (EstDep.GE.Bref(1)) Fuse = Ftarg
+    !IF (EstDep.LT.Bref(1).AND.EstDep.GT.Bref(2)) Fuse = Ftarg*(EstDep-Bref(2))/(Bref(1)-Bref(2))
+    ! resetting this so there is no HCR (constant F = Ftarg)
+    Fuse = Ftarg
+	EstQuant(3) = Fuse
+
+	Temp(1) = 0.d0
+	!get the RBC
+    Temp(3) = EstDep/SpawBio(1,0,Yr2)
+	DO Ilen=1,Nlen
+	 pRetLen = SUM(RetLen(1:Nflt,Ilen,Yr2)*pCatch(1:Nflt))
+	 DO Sex=1,2
+	  DO Age=0,MaxAge
+	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(Temp(3)*N(1,1:Nreg,Sex,Age,Yr2))*EXP(-0.5d0*Muse)*(1.d0-EXP(-1.d0*pSelAge(1,Age)*Fuse))
+	  ENDDO
+	 ENDDO
+	ENDDO
+	
+    !Temp(1) now contains the ABC
+    EstQuant(5) = Temp(1)
+
+    !do allocation by rec / comm
+    ! GF 07/25/19 HARDWIRING REC FLEETS HERE! CHANGE!!! 
+    RHL = RHLfrac * Temp(1) * (pCatch(3)/(pCatch(3)+pCatch(4)))
+    EstQuant(6) = RHL
+
+    !check current rec catch estimate
+    MRIPest = 0.d0
+ 	 !get current year's quantities
+	 OPEN(UNIT=13,FILE='Catches.inp')
+	 READ(13,*)
+4123 READ(13,*,END=4122,ERR=4122) Iyr,Iflt,Ireg,CatEst
+	 IF (Iyr.EQ.Yr2) THEN
+	  IF (Iflt.EQ.3) MRIPest = MRIPest + CatEst   !Fleet 3 is rec landings
+	 ENDIF
+	 GOTO 4123
+4122 CONTINUE
+	 CLOSE(13)
+     !WRITE(*,*) 'MRIP ',MRIPest
+     EstQuant(7) = MRIPest
+
+    !calculate the adjustment needed
+    Recadjust = 1.d0
+    IF (MGtype.GT.2) THEN
+     PCUM = 0.75 
+     ZSCORE = dinvnr(PCUM,1.d0-PCUM)
+     IF (MGtype.EQ.3) loAdjust = LOG(MRIPest)-ZSCORE*CatCV(3)
+     IF (MGtype.EQ.4) loAdjust = LOG(Temp(2))-ZSCORE*Pseudorefspecs(2)
+     !PCUM = 0.75 
+     !ZSCORE = dinvnr(PCUM,1.d0-PCUM)
+     IF (MGtype.EQ.3) hiAdjust = LOG(MRIPest)+ZSCORE*CatCV(3)
+     IF (MGtype.EQ.4) hiAdjust = LOG(Temp(2))+ZSCORE*Pseudorefspecs(2)
+     !WRITE(*,*) LOG(Fuse)
+     !WRITE(*,*) loAdjust
+     !WRITE(*,*) LOG(Temp(2))
+     !WRITE(*,*) hiAdjust
+     IF (MGtype.EQ.3.AND.LOG(RHL).GE.loAdjust.AND.LOG(RHL).LE.hiAdjust) GOTO 4124
+     IF (MGtype.EQ.4.AND.LOG(Fuse).GE.loAdjust.AND.LOG(Fuse).LE.hiAdjust) GOTO 4124
+    ENDIF
+
+    RECadjust = RHL / MRIPest
+!    WRITE(*,*) RHL
+!    WRITE(*,*) MRIPest
+!    WRITE(*,*) RECadjust
+
+    IF (MGtype.EQ.2.OR.MGtype.EQ.4) RECadjust = (1.d0-EXP(-1.0*Fuse)) / (1.d0-EXP(-1.0*Temp(2))) ! do F-based mgmt
+    !IF (MGtype.EQ.2.OR.MGtype.EQ.4) RECadjust = Fuse / Temp(2) ! do F-based mgmt
+    IF (RECadjust.LT.0.d0) RECadjust = 0       !constraints - these should be controls
+    IF (RECadjust.GT.2.d0) RECadjust = 2.d0    !maximum increase - these should be controls
+    
+!    WRITE(*,*) RECadjust
+
+4124 CONTINUE
+    EstQuant(8) = RECadjust
+
+    !!!
+    !!implementation model to mgmt regs goes here!
+    ! for now, assume that adjustment is made to the catch from last year and that that is the catch that gets made.
+    IF (ImplType.EQ.0) EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + RECadjust*SUM(RetCatch(3:4,1:Nreg,Yr2))
+    !!!
+    IF (ImplType.EQ.1) THEN
+     EstRBC = 0.d0
+     CurrRegs(1) = MIN(365.d0,CurrRegs(1)*RECadjust)
+     DO II=1,Nstate
+      !WRITE(*,*) II,EstRBC(1),EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)+XNORM(5,0.d0,Regpar(3,II),ISEEDX))
+      EstRBC(2) = EstRBC(2) + MAX(0.01d0, EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)))/1000.d0
+      EstRBC(1) = EstRBC(1) + MAX(0.01d0, EXP(Regpar(1,II)+Regpar(2,II)*CurrRegs(1)+XNORM(5,0.d0,Regpar(3,II),ISEEDX)))/1000.d0
+     ENDDO
+     EstQuant(9) = CurrRegs(1)
+     EstQuant(10) = EstRBC(2)
+     EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + EstRBC(1)
+    ENDIF
+
+    
+    !!!! READ IN MANAGEMENT MODEL
+
+    !!!! 2019/08/09  management model to get new regs
+    IF (ImplType.EQ.2) THEN
+      
+
+       !Define RHL in numbers
+       CALL GetLenProps(1,1,3,1,1,Yr2,LenProps)
+       !WRITE(*,*) (LenProps(II),II=1,Nlen)
+       !WRITE(*,*) (WtLen(II,1,1),II=1,Nlen)
+       MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
+       !WRITE(*,*) MuWt
+       !STOP
+       RHLnum = NINT(1000.d0*RHL/MuWt)
+       WRITE(*,*) RHL,RHLnum
+       !STOP
+
+      IF (RecAdjust.EQ.1.d0) THEN
+       EstQuant(13) = 0.d0
+       GOTO 4125
+      ENDIF
+
+      ScaleFlag = 2
+      IF (MGtype.EQ.5) ScaleFlag = 1
+
+      WRITE(*,*) (CurrRegs(II),II=1,3)
+      WRITE(FLUKE,'(A28,1x,I2,1x,F4.1,1x,I3,1x,F5.3,1x,I10,1x,I1)') 'Rscript R/management_model.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1)),RECadjust,RHLnum,ScaleFlag
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='mgmt_regs.out')
+      DO II=1,3
+       READ(10,*) MYVAL(II)
+      ENDDO
+      DO II=12,14
+       READ(10,*) EstQuant(II)
+      ENDDO
+      CLOSE(10)
+      WRITE(*,*) (MYVAL(II),II=1,3)
+      CurrRegs(2) = MYVAL(1)
+      CurrRegs(3) = MYVAL(2)
+      CurrRegs(1) = MYVAL(3)      
+
+4125  CONTINUE
+
+      EstQuant(9:11) = CurrRegs(1:3)
+
+     EstRBC = 0.d0
+ !    WRITE(FLUKE,'(A34,1x,I2,1x,F4.1,1x,I3)') 'Rscript R/FunctionforOM_20190809.R',NINT(MYVAL(1)),MYVAL(2),NINT(MYVAL(3))
+     WRITE(FLUKE,'(A34,1x,I2,1x,F4.1,1x,I3)') 'Rscript R/FunctionforOM_20190809.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1))
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='recland.out')
+      READ(10,*) MYVAL(4),MYVAL(5)
+      CLOSE(10)
+      WRITE(*,*) MYVAL(4),MYVAL(5)
+
+      EstRBC(2) = (1.d0-RHLfrac)*Temp(1) + MYVAL(4)*MuWt/1000.d0   !RECadjust*SUM(RetCatch(3:4,1:Nreg,Yr2))
+      WRITE(*,*) (1.d0-RHLfrac)*Temp(1)
+      EstQuant(15) = MYVAL(4)*MuWt/1000.d0
+      CALL GetLenProps(1,1,4,1,1,Yr2,LenProps)
+      MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
+      EstRBC(2) = EstRBC(2) + MYVAL(5)*MuWt/1000.d0
+      EstQuant(16) = MYVAL(5)*MuWt/1000.d0
+      WRITE(*,*) EstRBC(2)
+     !STOP
+    ENDIF
+    
+
+    !!!! 2019/02/22  interfacing with R-based fleet dynamics model
+    IF (ImplType.EQ.-1) THEN
+     EstRBC = 0.d0
+     CurrRegs(1) = MIN(365.d0,CurrRegs(1)*RECadjust)
+     WRITE(*,*) CurrRegs(1)
+     DO II=1,Nstate
+      WRITE(FLUKE,'(A25,1x,A2,1x,I2,1x,I2,1x,I3,1x,F7.2,1x,I4,1x,I1)') 'Rscript R/FunctionforOM.R',States(II),NINT(0.393701*CurrRegs(3)),NINT(CurrRegs(2)),NINT(CurrRegs(1)),RHL*0.00220462,2017,2
+      WRITE(*,*) FLUKE
+      CALL SYSTEM(FLUKE)
+      OPEN(UNIT=10,FILE='recland.out')
+      READ(10,*) MYVAL
+      CLOSE(10)
+      WRITE(*,*) MYVAL
+     ENDDO
+     !STOP
+    ENDIF
+
+
+    !! 2021/12/10 coupling to Lou's model 
+    !! 2022/02/11 don't need to run here because reg table is hard-wired.
+    IF (ImplType.EQ.3) THEN
+
+     !write table of input regulations 
+     !WRITE(FLUKE,'(A31,1x,I2,1x,I2,1x,I3)') 'Rscript write-rec-regulations.R',NINT(CurrRegs(3)),NINT(CurrRegs(2)),NINT(CurrRegs(1))
+     !WRITE(*,*) FLUKE
+     !CALL SYSTEM(FLUKE)
+     
+     !!! 2021/07/15  writing out length-structure for Lou's model
+!     WRITE(*,*) "OM Length structure"
+!     CALL GetFishOMLength(Yr2)
+
+     EstRBC(2) = Temp(1)
+
+ !    STOP
+     !Run Lou's model
+     !!!!!!!
+    ENDIF
+
+
+!# Initial year regulations (season length, bag limit, minimum size)
+!RHL in function is in million pounds
+!0.00220462
+ !  !WRITE(BOB,'(A12,1x,I2,1x,I4,1x,I2)') 
+ !   WRITE(BOB,'(A25,1x,I2)') 'Rscript R/FunctionforOM.R',18
+ !   WRITE(*,*) BOB
+ !   CALL SYSTEM(BOB)
+ !   OPEN(UNIT=10,FILE='recland.out')
+ !    READ(10,*) MYVAL
+ !    WRITE(*,*) MYVAL
+ !    STOP
+ !
+
+
+
+	!EstRBC(2) = Temp(1)
+	!EstRBC(2) = SUM(RetCatch(1:Nflt,1:Nreg,Yr2))*(1.d0-EXP(-1.d0*Fuse))/(1.d0-EXP(-1.d0*EstQuant(1)))
+	EstRBC(1) = EstRBC(2)
+
+
+	RETURN
+
+	STOP
+
+	END
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -643,11 +1310,11 @@
 
 	IMPLICIT NONE
     !INTEGER Yr2,Iproj2,II,Ftype,Iyr,Ilen,Age,Iflt,Sex
-    !REAL*8 Muse,Fref,Bref(2),Temp(2),Ftarg,Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen,Mbase
+    !REAL*8 Muse,Fref,Bref(2),Temp(2),Ftarg,Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen,Mbase
 	!modded local variables as now globals so only evl inputs on proj 1. 
 	!not implemented in here, just for 51, change here for bookkeeping
 	INTEGER Yr2,Iproj2,II,Iyr,Ilen,Age,Iflt,Sex,Ireg,MGtype,Nstate,Impltype,RHLnum,ScaleFlag
-	REAL*8 Muse,Temp(4),Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen
+	REAL*8 Muse,Temp(4),Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen
 	REAL*8 RHL,CatEst,Recadjust,MRIPest,Regpar(1:3,1:10)
 	REAL*8 XNORM
 	REAL*8 loAdjust, hiAdjust
@@ -745,7 +1412,7 @@
 	DO Iflt=1,Nflt
 	!WRITE(*,*) pCatch(Iflt)
 	DO Age=0,MaxAge
- 	 pSelAge(Age) = pSelAge(Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
+ 	 pSelAge(1,Age) = pSelAge(1,Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
 	ENDDO
 	ENDDO
 
@@ -771,7 +1438,7 @@
 	 pRetLen = SUM(RetLen(1:Nflt,Ilen,Yr2)*pCatch(1:Nflt))
 	 DO Sex=1,2
 	  DO Age=0,MaxAge
-	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(Temp(3)*N(1,1:Nreg,Sex,Age,Yr2))*EXP(-0.5d0*Muse)*(1.d0-EXP(-1.d0*pSelAge(Age)*Fuse))
+	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(Temp(3)*N(1,1:Nreg,Sex,Age,Yr2))*EXP(-0.5d0*Muse)*(1.d0-EXP(-1.d0*pSelAge(1,Age)*Fuse))
 	  ENDDO
 	 ENDDO
 	ENDDO
@@ -983,15 +1650,11 @@
 
 	OPEN(UNIT=10,FILE='om-length.dat')
 
-		!loop over fleets and regions and sex
-		DO 88601 Iflt=1,Nflt
-		 DO 88601 Ireg=1,Nreg
-		  DO 88601 Sex=1,2
 		   !get expected proportions
-		   CALL GetLenProps(1,2,Iflt,Ireg,Sex,Iyr,LenProps)
+		   CALL GetOMLens(1,2,Iyr,LenProps)
 		   !write the comp to the output file
-		   WRITE(10,'(I4,1x,I2,1x,I2,1x,I1,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,(LenProps(Ilen),Ilen=1,Nlen)
-88601	CONTINUE
+		   WRITE(10,'(I4,1x,200(F13.4,1x))') Iyr,(LenProps(Ilen),Ilen=1,Nlen)
+!88601	CONTINUE
 
     CLOSE(10)
 
@@ -1001,18 +1664,61 @@
 
     END
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	This finds the Operating Model Numbers at length
+
+	SUBROUTINE GetOMLens(Id,II,Iyr,LenProps)
+
+	IMPLICIT NONE
+	INCLUDE 'Sinatra.INC'
+
+	INTEGER Id,II,Iflt,Ireg,Sex,Iyr,Istk,Age,Ilen
+	REAL*8 LenProps(2000),RetTilde,Timing
+
+	Timing = 0.5d0
+
+	LenProps = 0.d0
 
 
+	DO 8411 Ilen=1,Nlen
+	 LenProps(Ilen) = 0.d0
+	  !equation 1.39
+	  DO 8412 Istk=1,Nstk
+	   DO 8412 Ireg=1,Nreg
+	     DO 8412 Sex=1,2
+	      DO 8412 Age=0,MaxAge
+	      !WRITE(*,*) Fraclen(Ilen,Istk,Sex,Age,Iyr), N(Istk,Ireg,Sex,Age,Iyr)
+	     IF (Id.EQ.1) LenProps(Ilen) = LenProps(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Iyr)*EXP(-0.5d0*M(Istk,Ireg,Sex,Age,Iyr))
+	   !IF (Id.EQ.2) LenProps(Ilen) = LenProps(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Iyr)*EXP(-1.d0*SurveyTime(Iflt)*ZatAge(Istk,Ireg,Sex,Age,Iyr))
+8412  CONTINUE
+	  !fishery
+	  !IF (Id.EQ.1) LenProps(Ilen) = LenProps(Ilen)*SelLen(Iflt,Ilen,Iyr)*RetTilde
+	  !survey
+      !IF (Id.EQ.2) LenProps(Ilen) = LenProps(Ilen)*SurveySel(Iflt,Ilen)
+8411 CONTINUE
+
+	!normalise to get proportions
+	!LenProps = LenProps/SUM(LenProps(1:Nlen))
+
+	!WRITE(*,'(I4,1x,200(F6.4,1x))') Iyr,(LenProps(Ilen),Ilen=1,Nlen)
+
+	IF (Diag.EQ.1) WRITE(98,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,II,Id,(LenProps(Ilen),Ilen=1,Nlen)
+
+
+	RETURN
+
+	END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!! This subroutine does the pseudo-FMSY assessment/HCR
 
     SUBROUTINE DoTier51(Yr2,Iproj2)
 
 	IMPLICIT NONE
 !	INTEGER Yr2,Iproj2,II,Ftype,Iyr,Ilen,Age,Iflt,Sex
-!	REAL*8 Muse,Fref,Bref(2),Temp(3),Ftarg,Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen,Mbase
+!	REAL*8 Muse,Fref,Bref(2),Temp(3),Ftarg,Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen,Mbase
 	INTEGER Yr2,Iproj2,II,Iyr,Ilen,Age,Iflt,Sex
-	REAL*8 Temp(3),Fuse,GetFtarg,pSelAge(0:100),pCatch(1:10),pRetLen,Muse
+	REAL*8 Temp(3),Fuse,GetFtarg,pSelAge(1:2,0:100),pCatch(1:10),pRetLen,Muse
 	REAL*8 GetFMSY
 
 	EXTERNAL GetFtarg,GetFMSY
@@ -1086,7 +1792,7 @@
 	DO Iflt=1,Nflt
 	!WRITE(*,*) pCatch(Iflt)
 	DO Age=0,MaxAge
- 	 pSelAge(Age) = pSelAge(Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Yr2)*pCatch(Iflt)
 	ENDDO
 	ENDDO
 
@@ -1096,7 +1802,7 @@
 	!Ftarg = GetFtarg(Fref,Muse,Yr2,pSelAge,Mbase)
 	Ftarg = Fref
 	IF (Ftype.EQ.5) THEN
-	  Ftarg = GetFMSY(Muse,Yr2,pSelAge)
+	  Ftarg = GetFMSY(Muse,Yr2,pSelAge,1)
 	  Bref(1) = BMSY*0.5d0
 	  Bref(2) = 0.d0
 	ENDIF
@@ -1126,7 +1832,7 @@
 	 pRetLen = SUM(RetLen(1:Nflt,Ilen,Yr2)*pCatch(1:Nflt))
 	 DO Sex=1,2
 	  DO Age=0,MaxAge
-	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(Temp(3)*N(1,1:Nreg,Sex,Age,Yr2))*EXP(-0.5d0*Muse)*(1.d0-EXP(-1.d0*pSelAge(Age)*Fuse))
+	   Temp(1) = Temp(1) + pRetLen*WtLen(Ilen,1,Sex)*Fraclen(Ilen,1,Sex,Age,Yr2)*SUM(Temp(3)*N(1,1:Nreg,Sex,Age,Yr2))*EXP(-0.5d0*Muse)*(1.d0-EXP(-1.d0*pSelAge(1,Age)*Fuse))
 	  ENDDO
 	 ENDDO
 	ENDDO
@@ -1150,7 +1856,7 @@
 
 	IMPLICIT NONE
 
-	REAL*8 Fuse,Flo,Fhi,Muse,pSelAge(0:100),pCatch(1:10)
+	REAL*8 Fuse,Flo,Fhi,Muse,pSelAge(1:2,0:100),pCatch(1:10)
 	REAL*8 pSBPR,pSBzero,Temp,testdep,GetSPR,Yield,MaxYield,GetYPR
 	REAL*8 a,b,c,d,Ya,Yb,Yc,Yd,phi,GetYield,hh
 	INTEGER Age,Sex,Iflt,II,Yr2,useZ
@@ -1246,7 +1952,7 @@
 
 	IMPLICIT NONE
 
-	REAL*8 Fuse,Flo,Fhi,Muse,pSelAge(0:100),pCatch(1:10)
+	REAL*8 Fuse,Flo,Fhi,Muse,pSelAge(1:2,0:100),pCatch(1:10)
 	REAL*8 pSBPR,pSBzero,Temp,testdep,GetSPR,GetYPR
 	INTEGER Age,Sex,Iflt,II,Yr2,useZ
 
@@ -1255,8 +1961,8 @@
 	INCLUDE 'Sinatra.INC'
 
 	 !WRITE(*,*) II,Fuse
-	 pSBzero = GetSPR(0.d0,Muse,pSelAge,Yr2)
-	 pSBPR = GetSPR(Fuse,Muse,pSelAge,Yr2)
+	 pSBzero = GetSPR(0.d0,Muse,pSelAge,Yr2,1)
+	 pSBPR = GetSPR(Fuse,Muse,pSelAge,Yr2,1)
 	 !WRITE(*,*) II,Fuse,pSBPR
     
     !testdep = (4*h(1)*pSBPR/pSBzero-(1.d0-h(1)))/(5.d0*h(1)-1.d0)
@@ -1264,7 +1970,7 @@
     testdep = ((4*h(1)*Rzero(1)*pSBPR)-(SBioZero(1)*(1.d0-h(1))))/(pSBPR*((5.d0*h(1))-1.d0))
 	!testdep = pSBPR/pSBzero
     !dep = (4*h*SBPR/SBPR0-(1-h))/(5*h-1)
-    Temp = GetYPR(Fuse,Muse,pSelAge,Yr2)
+    Temp = GetYPR(Fuse,Muse,pSelAge,Yr2,1)
     GetYield = testdep*Temp
     BMSY = pSBPR*testdep
 
@@ -1292,23 +1998,23 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	REAL*8 FUNCTION GetFtarg(Fval,Muse,Yr2,pSelAge)
+	REAL*8 FUNCTION GetFtarg(Fval,Muse,Yr2,pSelAge,Nsex)
 
 	IMPLICIT NONE
 
-	REAL*8 Fval,Fuse,Flo,Fhi,Muse,pSelAge(0:100),pCatch(1:10)
+	REAL*8 Fval,Fuse,Flo,Fhi,Muse,pSelAge(1:2,0:100),pCatch(1:10)
 	REAL*8 pSBPR,pSBzero,Temp,testdep,GetSPR
-	INTEGER Age,Sex,Iflt,II,Yr2,useZ
+	INTEGER Age,Sex,Iflt,II,Yr2,useZ,Nsex
 
 	EXTERNAL GetSPR
 	INCLUDE 'Sinatra.INC'
 
 	!WRITE(*,*) pSelAge
     
-	pSBzero = GetSPR(0.d0,Muse,pSelAge,Yr2)
+	pSBzero = GetSPR(0.d0,Muse,pSelAge,Yr2,Nsex)
 	IF (Mbase.GT.0) THEN
-	 pSBzero = GetSPR(0.d0,Mbase,pSelAge,Yr2)
-	 Temp = GetSPR(0.d0,Muse,pSelAge,Yr2)
+	 pSBzero = GetSPR(0.d0,Mbase,pSelAge,Yr2,Nsex)
+	 Temp = GetSPR(0.d0,Muse,pSelAge,Yr2,Nsex)
 	 testdep = (4*h(1)*Temp/pSBzero-(1.d0-h(1)))/(5.d0*h(1)-1.d0)
 	 IF (testdep.LE.Fref) THEN
 	  GetFTarg = 0.d0
@@ -1325,8 +2031,8 @@
 4022 Fuse = Flo + (Fhi-Flo)/2.d0
 	 II=II+1
 	 !WRITE(*,*) II,Fuse
-	 pSBPR = GetSPR(Fuse,Muse,pSelAge,Yr2)
-	 !WRITE(*,*) II,Fuse,pSBPR
+	 pSBPR = GetSPR(Fuse,Muse,pSelAge,Yr2,Nsex)
+	 !WRITE(*,*) II,Fuse,pSBPR,pSBPR/pSBzero
 
     !testdep = (4*h(1)*pSBPR/pSBzero-(1.d0-h(1)))/(5.d0*h(1)-1.d0)
 	testdep = pSBPR/pSBzero
@@ -1350,19 +2056,30 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-   REAL*8 FUNCTION GetYPR(Fuse,Muse,pSelAge,Yr2)
+   REAL*8 FUNCTION GetYPR(Fuse,Muse,pSelAge,Yr2,Nsex)
 
-   REAL*8 Muse,pSelAge(0:100),Fuse,Ntemp(0:100),Zuse(0:100),Buse(0:100)
+   REAL*8 Muse,pSelAge(1:2,0:100),Fuse,Ntemp(0:100),Zuse(0:100),Buse(0:100)
 
-   INTEGER Age,Yr2
+   INTEGER Age,Yr2,Nsex
 
    INCLUDE 'Sinatra.INC'
 
+
    Ntemp(0) = 1.d0
+   IF (Nsex.EQ.2) Ntemp(0) = 0.5d0
    DO Age=1,MaxAge
-    Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(Muse+pSelAge(Age-1)*Fuse))
+    Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(Muse+pSelAge(1,Age-1)*Fuse))
    ENDDO
-   Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP((-1.d0*(Muse+pSelAge(MaxAge)*Fuse))))
+   Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP((-1.d0*(Muse+pSelAge(1,MaxAge)*Fuse))))
+
+   IF (Nsex.EQ.2) THEN
+    DO Age=1,MaxAge
+     Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(M(1,1,1,Age-1,Yr2)+pSelAge(1,Age-1)*Fuse))
+    ENDDO
+    Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP((-1.d0*(M(1,1,1,MaxAge,Yr2)+pSelAge(1,MaxAge)*Fuse))))
+   ENDIF
+
+!   WRITE(*,*) Ntemp(0:MaxAge)
 
 !   GetYPR = 0.d0
 !   DO Age=1,MaxAge
@@ -1370,12 +2087,32 @@
 !   ENDDO
 
 
-   Zuse(0:MaxAge) = Muse + Fuse*pSelAge(0:MaxAge)
-   Buse(0:MaxAge) = Ntemp(0:MaxAge)*Weight(1,1,0:MaxAge,Yr2)
-   GetYPR = SUM(Fuse*pSelAge(0:MaxAge)*Buse(0:MaxAge)*(1.d0/Zuse(0:MaxAge))*(1.d0-EXP(-1.d0*Zuse(0:MaxAge))))
+   Zuse(0:MaxAge) = Muse + Fuse*pSelAge(1,0:MaxAge)
+   IF (Nsex.Eq.2) Zuse(0:MaxAge) = M(1,1,1,0:MaxAge,Yr2) + Fuse*pSelAge(1,0:MaxAge)
+   Buse(0:MaxAge) = Ntemp(0:MaxAge)*WeightMid(1,1,0:MaxAge,Yr2)
+
+
+   GetYPR = SUM(Fuse*pSelAge(1,0:MaxAge)*Buse(0:MaxAge)*(1.d0/Zuse(0:MaxAge))*(1.d0-EXP(-1.d0*Zuse(0:MaxAge))))
   
    !Yield = Fuse*elem_prod(elem_prod(elem_prod(1/Z,Sel),Bio),(1-mfexp(-1.*Z)));
    !GetYPR = SUM(Ntemp(0:MaxAge)*Weight(1,1,0:MaxAge,Yr2))
+
+   IF (Nsex.EQ.2) THEN
+
+   Ntemp(0) = 0.5d0
+   DO Age=1,MaxAge
+    Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(M(1,1,2,Age-1,Yr2)+pSelAge(2,Age-1)*Fuse))
+   ENDDO
+   Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP((-1.d0*(M(1,1,2,MaxAge,Yr2)+pSelAge(2,MaxAge)*Fuse))))
+
+   Zuse(0:MaxAge) = M(1,1,2,0:MaxAge,Yr2) + Fuse*pSelAge(2,0:MaxAge)
+   Buse(0:MaxAge) = Ntemp(0:MaxAge)*WeightMid(1,2,0:MaxAge,Yr2)
+
+
+   GetYPR = GetYPR + SUM(Fuse*pSelAge(2,0:MaxAge)*Buse(0:MaxAge)*(1.d0/Zuse(0:MaxAge))*(1.d0-EXP(-1.d0*Zuse(0:MaxAge))))
+  
+
+   ENDIF
 
    RETURN
 
@@ -1383,25 +2120,49 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-   REAL*8 FUNCTION GetSPR(Fuse,Muse,pSelAge,Yr2)
+   REAL*8 FUNCTION GetSPR(Fuse,Muse,pSelAge,Yr2,Nsex)
 
-   REAL*8 Muse,pSelAge(0:100),Fuse,Ntemp(0:100)
+   REAL*8 Muse,pSelAge(1:2,0:100),Fuse,Ntemp(0:100)
 
-   INTEGER Age,Yr2
+   INTEGER Age,Yr2,Nsex
 
    INCLUDE 'Sinatra.INC'
 
 
    Ntemp(0) = 0.5d0
    DO Age=1,MaxAge
-    Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(Muse+pSelAge(Age-1)*Fuse))
+    !WRITE(*,*) Age, Muse, pSelAge(Age-1), Fecundity(1,Age,Yr2)
+    Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(Muse+pSelAge(1,Age-1)*Fuse))
    ENDDO
-   Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP((-1.d0*(Muse+pSelAge(MaxAge)*Fuse))))
+   Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP(-1.d0*(Muse+pSelAge(1,MaxAge)*Fuse)))
 
    !WRITE(*,*) Fecundity(1,0:MaxAge,Yr2)
 
    GetSPR = SUM(Ntemp(0:MaxAge)*Fecundity(1,0:MaxAge,Yr2))
 
+   IF (Nsex.EQ.2) THEN
+   GetSPR = 0.d0
+   Ntemp(0) = 0.5d0
+    DO Age=1,MaxAge
+     Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(M(1,1,1,Age-1,Yr2)+pSelAge(1,Age-1)*Fuse))
+    ENDDO
+    Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP(-1.d0*(M(1,1,1,MaxAge,Yr2)+pSelAge(1,MaxAge)*Fuse)))
+    DO Age = 0, MaxAge
+      GetSPR = GetSPR + SUM(Ntemp(Age)*EXP(-0.83d0*(M(1,1,1,Age,Yr2)+pSelAge(1,Age)*Fuse))*Fraclen(1:Nlen,1,1,Age,Yr2)*Maturity(1,1:Nlen,Fyear)*WtLen(1:Nlen,1,1))
+    ENDDO
+
+   Ntemp(0) = 0.5d0
+    DO Age=1,MaxAge
+     Ntemp(Age) = Ntemp(Age-1)*EXP(-1.d0*(M(1,1,2,Age-1,Yr2)+pSelAge(2,Age-1)*Fuse))
+    ENDDO
+    Ntemp(MaxAge) = Ntemp(MaxAge)/(1.d0-EXP(-1.d0*(M(1,1,2,MaxAge,Yr2)+pSelAge(2,MaxAge)*Fuse)))
+    DO Age = 0, MaxAge
+      GetSPR = GetSPR + SUM(Ntemp(Age)*EXP(-0.83*(M(1,1,2,Age,Yr2)+pSelAge(2,Age)*Fuse))*Fraclen(1:Nlen,1,2,Age,Yr2)*Maturity(1,1:Nlen,Fyear)*WtLen(1:Nlen,1,2))
+    ENDDO
+   ENDIF
+
+   !WRITE(*,*) Fuse, GetSPR
+   !STOP
 
    RETURN
 
@@ -1739,7 +2500,7 @@
 
 	INCLUDE 'Sinatra.INC'
 	INTEGER Yr2,Iproj3,IDUM,II,Age
-	REAL*8 DUM,Temp,TempSD,Muse,TempCat,Ftemp,Fuse,pSelAge(0:100),GetYPR
+	REAL*8 DUM,Temp,TempSD,Muse,TempCat,Ftemp,Fuse,pSelAge(1:2,0:100),GetYPR
 	CHARACTER DUMCHAR
 	DOUBLE PRECISION PCUM,ZSCORE
 	DOUBLE PRECISION dinvnr
@@ -1799,7 +2560,7 @@
 	READ(15,*) Temp
 	READ(15,*)
 	!IF (Tier3R(4).NE.0.5d0) 
-	READ(15,*) (pSelAge(Age),Age=0,MaxAge)
+	READ(15,*) (pSelAge(1,Age),Age=0,MaxAge)
 	CLOSE(15)
 
 	IF (Tier3R(4).NE.0.5d0) THEN
@@ -1821,10 +2582,10 @@
 	 CLOSE(13)
 	 EstQuant(4) = Fuse
 	 !get the rbc
-	 EstRBC(2) = TempCat*GetYPR(Fuse,Muse,pSelAge,Yr2)/GetYPR(Ftemp,Muse,pSelAge,Yr2)
+	 EstRBC(2) = TempCat*GetYPR(Fuse,Muse,pSelAge,Yr2,1)/GetYPR(Ftemp,Muse,pSelAge,Yr2,1)
 	 IF (Fuse.EQ.0.d0) EstRBC(2) = 0.d0
 	 !WRITE(*,*) EstDep,EstQuant(7),Ftemp,(EstQuant(II),II=1,4)
-	 !WRITE(*,*) TempCat,Fuse,GetYPR(Fuse,Muse,pSelAge,Yr2),Ftemp,GetYPR(Ftemp,Muse,pSelAge,Yr2)
+	 !WRITE(*,*) TempCat,Fuse,GetYPR(Fuse,Muse,pSelAge,Yr2,1),Ftemp,GetYPR(Ftemp,Muse,pSelAge,Yr2,1)
 	ENDIF
 
 	EstRBC(1) = EstRBC(2)
@@ -2064,7 +2825,7 @@
 
 !	DO HISTORICAL PROJECTION
 	WRITE(99,*) 'Starting Historical Projection'
-	CALL HistProj()
+	CALL HistProj(Isim)
 	WRITE(99,*) 'Historical Projection finished'
 
 !	GET HISTORICAL DATA
@@ -2198,12 +2959,12 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   This subroutine performs the historical projection
-	SUBROUTINE Histproj
+	SUBROUTINE Histproj(Isim2)
 
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Age,Ireg,Iyr,Istk,II,NumReg,Ipar
+	INTEGER Age,Ireg,Iyr,Istk,II,NumReg,Ipar,Isim2
 	REAL*8 RzeroHi(Nstk),RzeroLo(Nstk),Obj,TempX(1:10),Tempsum
 
 
@@ -2225,7 +2986,7 @@
 700	 Rzero(1:Nstk) = RzeroLo(1:Nstk) + (RzeroHi(1:Nstk)-RzeroLo(1:Nstk))/2.d0
 	 II=II+1
 !	 WRITE(99,*) Rzero(1:Nstk)
-	 CALL GetInit()
+	 CALL GetInit(Isim2)
 	 CALL GetNumbersAtAge(0)
 !	 WRITE(99,*) TargDep(1:Nstk),SpawBio(1:Nstk,0,Lyear+1),SBiozero(1:Nstk)
 	 Obj = SUM(ABS(TargDep(1:Nstk) - (SpawBio(1:Nstk,0,Lyear+1)/SBiozero(1:Nstk))))
@@ -2285,7 +3046,7 @@
 
 !	Initial Conditions
 	WRITE(99,*) 'Initializing'
-    CALL GetInit()
+    CALL GetInit(Isim2)
 	WRITE(99,*) 'Finished with Initialization'
 
 !	Update for each year of historical period
@@ -2694,6 +3455,11 @@
 		SelAge(Iflt,Istk,Sex,0:Maxage,Iyr) = Stemp
 		SelAge(Iflt,Istk,Sex,0,Iyr) = 0.d0
 		IF (Diag.EQ.1) WRITE(98,'(I2,1x,I2,1x,I1,1x,I4,1x,100(F6.4,1x))') Iflt,Istk,Sex,Iyr,(SelAge(Iflt,Istk,Sex,Age,Iyr),Age=0,MaxAge)
+		IF (Diag.EQ.1.AND.HCRspecs(3).EQ.62.AND.Iyr.EQ.2019) THEN
+		 OPEN(UNIT=32,FILE='SelAge2019.out',POSITION='APPEND')
+		 WRITE(32,'(I2,1x,I2,1x,I1,1x,I4,1x,100(F6.4,1x))') Iflt,Istk,Sex,Iyr,(SelAge(Iflt,Istk,Sex,Age,Iyr),Age=0,MaxAge)
+		 CLOSE(32)
+		ENDIF
 80   CONTINUE
 
 	RETURN
@@ -2818,8 +3584,9 @@
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Ilen,Iyr,Yr1,Yr2,Iflt  
-	REAL*8 Stemp,Posbit 
+	INTEGER Ilen,Iyr,Yr1,Yr2,Iflt,Istk,Sex,Ireg,Age  
+	REAL*8 Stemp,Posbit,TempCatLen1(1:NLen),TempCatLen2(1:NLen),TempNumLen(1:NLen)
+	REAL*8 Selmax(1:2)  
 
 	!First get deviations in selectivity
 	!Equations 1.9 & 1.10
@@ -2837,42 +3604,66 @@
 	IF (UseMCMC.EQ.1) CALL GetpostSel()
 
 	DO 90 Iflt=1,Nflt
-     IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Yr1,(SelLen(Iflt,Ilen,Yr1),Ilen=1,Nlen)
+     !IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Yr1,(SelLen(Iflt,Ilen,Yr1),Ilen=1,Nlen)
 	 DO 90 Iyr=Yr1+1,Yr2
       DO 91 Ilen=1,Nlen
 	   Stemp = LOG((Posbit+SelLen(Iflt,Ilen,Fyear))/(1+Posbit-SelLen(Iflt,Ilen,Fyear)))+DevSel(Iflt,Ilen,Iyr)
 !	   Stemp = LOG((Posbit+SelLen(Iflt,Ilen,Iyr-1))/(1+Posbit-SelLen(Iflt,Ilen,Iyr-1)))+DevSel(Iflt,Ilen,Iyr)
 	   SelLen(Iflt,Ilen,Iyr)=EXP(Stemp)/(1+EXP(Stemp))
 91	  CONTINUE
-     IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Iyr,(SelLen(Iflt,Ilen,Iyr),Ilen=1,Nlen)
+!     IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Iyr,(SelLen(Iflt,Ilen,Iyr),Ilen=1,Nlen)
 90	CONTINUE
 
 
-!    ! Added 2019/08/12 GF, for fluke - force selectivity
-!    IF (HCRspecs(3).EQ.61.AND.Yr1.GE.Lyear) THEN
-!     Iflt = 3
-!     WRITE(*,*) 'Force Selex'
-!     WRITE(*,*) (SelLen(Iflt,Ilen,Yr1+1),Ilen=1,Nlen)
-!     OPEN(UNIT=14,FILE='recland.out')
-!     READ(14,*)
-!     READ(14,*) (TempCatLen(Ilen),Ilen=1,NLen)
-!     WRITE(*,*) (TempCatLen(Ilen),Ilen=1,NLen)
-!
-!     TempNumLen = 0.d0
-!     DO 92 Ilen = 1,Nlen
-!      DO 92 Istk = 1,Nstk
-!       DO 92 Ireg = 1, Nreg
-!        DO 92 Sex = 1,2
-!         DO 92 Age = 0,MaxAge
-!     TempNumLen(Ilen) = TempNumLen(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Yr1+1)*N(Istk,Ireg,Sex,Age,Yr1+1)*EXP(-0.5d0*M(!Istk,Ireg,Sex,Age,Yr1+1))
-!92   CONTINUE
-!     WRITE(*,*) (TempNumLen(Ilen),Ilen=1,Nlen)
+!    ! Added 2022/02/09 GF, for fluke - force selectivity based on output of econ model
+    IF (HCRspecs(3).EQ.62.AND.Yr2.GT.Lyear) THEN
+
+     !WRITE(*,*) 'Force Selex'
+     !WRITE(*,*) (SelLen(Iflt,Ilen,Yr1+1),Ilen=1,Nlen)
+     OPEN(UNIT=14,FILE='rec-catch.out')
+     !READ(14,*)
+     READ(14,*) (TempCatLen1(Ilen),Ilen=1,NLen)
+     READ(14,*) (TempCatLen2(Ilen),Ilen=1,NLen)
+     !WRITE(*,*) (TempCatLen1(Ilen),Ilen=1,NLen)
+     !WRITE(*,*) (TempCatLen2(Ilen),Ilen=1,NLen)
+     CLOSE(14)
+     TempCatLen2(1:Nlen) = (1.d0-RecDiscSurv)*TempCatLen2(1:Nlen)
+
+     TempNumLen = 0.d0
+     DO 92 Ilen = 1,Nlen
+      DO 92 Istk = 1,Nstk
+       DO 92 Ireg = 1, Nreg
+        DO 92 Sex = 1,2
+         DO 92 Age = 0,MaxAge
+          TempNumLen(Ilen) = TempNumLen(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Yr1)*EXP(-0.5d0*M(Istk,Ireg,Sex,Age,Yr1))
+92   CONTINUE
+     !WRITE(*,*) (TempNumLen(Ilen),Ilen=1,Nlen)
      
+     DO 95 Iyr=Yr1+1,Yr2
+     DO 93 Ilen = 1,Nlen
+      SelLen(3,Ilen,Iyr) = MIN(TempCatLen1(Ilen)/TempNumLen(Ilen),0.9999d0)
+      SelLen(4,Ilen,Iyr) = MIN(TempCatLen2(Ilen)/TempNumLen(Ilen),0.9999d0)
+93   CONTINUE
+     Selmax(1:2) = 0.d0
+     DO Ilen = 1,Nlen
+      Selmax(1) = MAX(SelLen(3,Ilen,Iyr),Selmax(1))
+      Selmax(2) = MAX(SelLen(4,Ilen,Iyr),Selmax(2))
+     ENDDO
+     SelLen(3,1:Nlen,Iyr) = SelLen(3,1:Nlen,Iyr)/Selmax(1)
+     SelLen(4,1:Nlen,Iyr) = SelLen(4,1:Nlen,Iyr)/Selmax(2)
+95   CONTINUE
+     !WRITE(*,*) (SelLen(3,Ilen,Yr1+1),Ilen=1,Nlen)
+     !WRITE(*,*) (SelLen(4,Ilen,Yr1+1),Ilen=1,Nlen)
+
 !     STOP
 
+    ENDIF
 
- !   ENDIF
-
+	DO 94 Iflt=1,Nflt
+     IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Yr1,(SelLen(Iflt,Ilen,Yr1),Ilen=1,Nlen)
+	 DO 94 Iyr=Yr1+1,Yr2
+     IF (Diag.EQ.1) WRITE(98,'(I2,1x,I4,1x,100(F6.4,1x))') Iflt,Iyr,(SelLen(Iflt,Ilen,Iyr),Ilen=1,Nlen)
+94	CONTINUE
 
 	RETURN
 
@@ -3481,7 +4272,8 @@
 	  DO 45 Iyr=Yr1+1,Yr2
        IF (WAflag.EQ.1) Weight(Istk,Sex,0:MaxAge,Iyr) = Weight(Istk,Sex,0:MaxAge,Iyr-1)
 	   IF (WAflag.EQ.1) WeightMid(Istk,Sex,0:MaxAge,Iyr) = WeightMid(Istk,Sex,0:MaxAge,Iyr-1)
-       IF (WAflag.EQ.2) Weight (Istk,Sex,0:MaxAge,Iyr)= WtLenPars(1,Istk,Sex)*(MeanLenAge(istk,Sex,0:MaxAge,Iyr)**WtLenPars(2,Istk,Sex))
+       IF (WAflag.EQ.2) Weight(Istk,Sex,0:MaxAge,Iyr) = WtLenPars(1,Istk,Sex)*(LenStart(istk,Sex,0:MaxAge,Iyr)**WtLenPars(2,Istk,Sex))
+       IF (WAflag.EQ.2) WeightMid(Istk,Sex,0:MaxAge,Iyr) = WtLenPars(1,Istk,Sex)*(MeanLenAge(istk,Sex,0:MaxAge,Iyr)**WtLenPars(2,Istk,Sex))
   	   IF (Diag.EQ.1) WRITE(98,'(I4,1x,I2,1x,I1,1x,100(F6.2,1x))') Iyr,Istk,Sex,(Weight(Istk,Sex,Age,Iyr),Age=0,MaxAge) 
 	   IF (Diag.EQ.1) WRITE(98,'(I4,1x,I2,1x,I1,1x,100(F6.2,1x))') Iyr,Istk,Sex,(WeightMid(Istk,Sex,Age,Iyr),Age=0,MaxAge) 
 45	CONTINUE
@@ -3634,8 +4426,9 @@
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Age,Istk,Ireg,Year,Ilen
+	INTEGER Age,Istk,Ireg,Year,Ilen,Sex
 
+    IF (HCRspecs(3).NE.62) THEN 
 	SpawBio(1:Nstk,0:Nreg,Year)=0.d0
 	DO 630 IStk=1,Nstk
 	 DO 631 Ireg=1,Nreg
@@ -3648,7 +4441,29 @@
      SpawBio(Istk,0,Year) = SUM(SpawBio(Istk,1:Nreg,Year))
 	 WRITE(92,'(I4,1x,I2,1x,100(F20.4,1x))') Year,IStk,(SpawBio(Istk,Ireg,Year),Ireg=0,Nreg)
 630	CONTINUE
+    ENDIF
 
+    IF (HCRspecs(3).EQ.62) THEN 
+	SpawBio(1:Nstk,0:Nreg,Year)=0.d0
+	DO 632 IStk=1,Nstk
+	 DO 633 Ireg=1,Nreg
+	  DO 633 Age=0,MaxAge-1
+	   DO 633 Sex=1,2
+	    DO 633 Ilen=1,Nlen
+	   !IF (Diag.EQ.1) WRITE(98,*) N(Istk,Ireg,1,Age,Year),Fecundity(Istk,Age,Year),Weight(Istk,1,Age,Year)
+       SpawBio(Istk,Ireg,Year)=SpawBio(Istk,Ireg,Year)+((1-0.83)*N(Istk,Ireg,Sex,Age,Year)+0.83*N(Istk,Ireg,Sex,Age+1,Year+1))*Fraclen(Ilen,Istk,Sex,Age,Year)*Maturity(Istk,Ilen,Fyear)*WtLen(Ilen,Istk,Sex)
+	   !SpawBio(Istk,Ireg,Year)=SpawBio(Istk,Ireg,Year)+N(Istk,Ireg,1,Age,Year)*Fecundity(Istk,Age,Year)   !*Weight(Istk,1,Age,Year)
+633	 CONTINUE
+	   DO Sex=1,2
+	    DO Ilen=1,Nlen
+       SpawBio(Istk,Ireg,Year)=SpawBio(Istk,Ireg,Year)+((1-0.83)*N(Istk,Ireg,Sex,MaxAge,Year)+0.83*N(Istk,Ireg,Sex,MaxAge,Year+1))*Fraclen(Ilen,Istk,Sex,MaxAge,Year)*Maturity(Istk,Ilen,Fyear)*WtLen(Ilen,Istk,Sex)
+        ENDDO
+       ENDDO
+
+     SpawBio(Istk,0,Year) = SUM(SpawBio(Istk,1:Nreg,Year))
+	 WRITE(92,'(I4,1x,I2,1x,100(F20.4,1x))') Year,IStk,(SpawBio(Istk,Ireg,Year),Ireg=0,Nreg)
+632	CONTINUE
+    ENDIF
 
 	RETURN
 
@@ -3800,7 +4615,7 @@
 !	Section 1.1.7
 !	Equations 1.29,1.30,1.31
 !
-	SUBROUTINE GetInit
+	SUBROUTINE GetInit(Isim2)
 
 	!DECEMBER 8th 2010
 
@@ -3808,9 +4623,9 @@
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER II,JJ,Age,Sex,Istk,JAge,Ireg,Jreg
+	INTEGER II,JJ,Age,Sex,Istk,JAge,Ireg,Jreg,Isim2
 	REAL*8 Ntemp(1:Nreg),NproVec(Nreg*(MaxAge+1)),TM(Nreg*(MaxAge+1),Nreg*(MaxAge+1)),NewVec(Nreg*(MaxAge+1))
-	REAL*8 TempMat(Nreg*(MaxAge+1),Nreg*(MaxAge+1)),Temp,TempVec(0:MaxAge)
+	REAL*8 TempMat(Nreg*(MaxAge+1),Nreg*(MaxAge+1)),Temp,TempVec(0:MaxAge),PropFemale(0:MaxAge)
 
 
 	IF (Diag.EQ.1) THEN
@@ -3943,13 +4758,19 @@
     IF (RecDevFlag(1).EQ.2) THEN
      OPEN(UNIT=15, FILE='init-natage.inp')
      READ(15,*)
+     READ(15,*) (PropFemale(Age),Age=0,MaxAge)
+     DO II=1,Isim2
+      READ(15,*)
+     ENDDO
      READ(15,*) (TempVec(Age),Age=0,MaxAge)
      CLOSE(15)
      !WRITE(*,*) (TempVec(Age),Age=0,MaxAge)
      !DO 620 Istk=1,Nstk
+      Rzero(Istk) = TempVec(0)
       DO 620 Sex=1,2
        DO 620 Ireg=1,Nreg
-        N(Istk,Ireg,Sex,0:MaxAge,Fyear) = 0.5d0*TempVec(0:MaxAge)
+        N(Istk,Ireg,Sex,0:MaxAge,Fyear) = PropFemale(0:MaxAge)*TempVec(0:MaxAge)
+        IF (Sex.EQ.2) N(Istk,Ireg,Sex,0:MaxAge,Fyear) = (1.d0-PropFemale(0:MaxAge))*TempVec(0:MaxAge)
 620  CONTINUE
     ENDIF
 	 IF (Diag.EQ.1) THEN
@@ -3959,6 +4780,8 @@
 617	  CONTINUE
 	 ENDIF
 616	CONTINUE
+
+
 
 	!get initial relevant quantities
 	CALL GetSpawBio(Fyear)
@@ -4293,12 +5116,13 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   This subroutine performs the future projections
 !	
-	SUBROUTINE Futureproj(Yr1,Yr2)
+	SUBROUTINE Futureproj(Isim2,Iproj2,Yr1,Yr2)
 
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Age,Ireg,Iyr,Yr1,Yr2
+	INTEGER Age,Ireg,Iyr,Yr1,Yr2,Isim2,Iproj2
+	CHARACTER*100 FLUKE
 
 !	OPEN some summary files
    IF (Diag.EQ.1) THEN
@@ -4326,7 +5150,21 @@
 	IF (Diag.EQ.1) OPEN(UNIT=98,FILE='histproj.junk',POSITION='APPEND')
 	 DO 3010 Iyr=Yr1+1,Yr2+1
 	  CALL PopUpdate(Iyr)
-	  IF (Iyr.LE.Yr2) CALL GetNewCatch(Iyr)
+
+	  IF (HCRspecs(3).EQ.62) THEN
+      !!! writing out length-structure for Lou's model
+       WRITE(*,*) "OM Length structure"
+       CALL GetFishOMLength(Iyr)
+       !!! Call Lou's model
+       WRITE(FLUKE,'(A28)') 'Rscript prediction-wrapper.R'
+       WRITE(*,*) FLUKE
+       IF (Diag.NE.-1) CALL SYSTEM(FLUKE)
+       !update Selectivity
+       IF (Diag.EQ.1) OPEN(UNIT=98,FILE='Selex.junk',POSITION='APPEND')
+	   IF (Iyr.LE.Yr2) CALL GetSelex(Iyr-1,Iyr)
+	   IF (Diag.EQ.1) CLOSE(98)
+      ENDIF
+	  IF (Iyr.LE.Yr2) CALL GetNewCatch(Isim2,Iproj2,Iyr)
 3010 CONTINUE
 	CLOSE(98)
 	WRITE(99,*) 'Finished future projection'
@@ -4352,8 +5190,24 @@
 	INCLUDE 'Sinatra.INC'
 
 	INTEGER II,Istk,Ireg,Sex,Yr1,Yr2,Iyr
+	CHARACTER*100 FLUKE
 
 	WRITE(99,*) Yr1
+
+
+    IF (HCRspecs(3).EQ.62) THEN
+ 
+     !!! 2021/07/15  writing out length-structure for Lou's model
+     WRITE(*,*) "OM Length structure"
+     CALL GetFishOMLength(Yr1)
+
+     !!! Call Lou's model
+     WRITE(FLUKE,'(A28)') 'Rscript prediction-wrapper.R'
+     WRITE(*,*) FLUKE
+     IF (Diag.NE.-1) CALL SYSTEM(FLUKE)
+     
+
+    ENDIF
 
 
 !	Biology
@@ -4441,7 +5295,7 @@
 !	WRITE(99,*) 'got vbio'
 
 !	Get the catch for the first year
-	CALL GetNewCatch(Yr1)
+	CALL GetNewCatch(1,1,Yr1)
 	IF (Diag.EQ.1) WRITE(99,*)'check catches.junk'
 
 	RETURN
@@ -4470,7 +5324,7 @@
 
 	CLOSE(14)
 
- !   WRITE(*,*) RBC
+    !WRITE(*,*) RBC
 
 	   OPEN(UNIT=14,FILE='alloc.out')
 	  !find the number of active fleets
@@ -4486,8 +5340,9 @@
 
 	CLOSE(14)
 
-    IF (HCRspecs(3).EQ.61) THEN
-      OPEN(UNIT=14,FILE='flukerefs.ctl')
+    IF (HCRspecs(3).GE.61) THEN
+      IF (HCRspecs(3).EQ.61) OPEN(UNIT=14,FILE='flukerefs.ctl')
+      IF (HCRspecs(3).EQ.62) OPEN(UNIT=14,FILE='fluke-recdisc.ctl')
       DO II=1,24
        READ(14,*)
       ENDDO
@@ -4505,9 +5360,16 @@
        AllocPars(1,3) = EstQuant(15)
        AllocPars(1,4) = EstQuant(16)      
       ENDIF
-
+      IF (Ipar.EQ.3) THEN
+       AllocPars(1,1) = (1.d0-RHLfrac)*EstQuant(5)*SUM(RetCatch(1,1:Nreg,Yr1-1))/SUM(RetCatch(1:2,1:Nreg,Yr1-1))
+       AllocPars(1,2) = (1.d0-RHLfrac)*EstQuant(5)*SUM(RetCatch(2,1:Nreg,Yr1-1))/SUM(RetCatch(1:2,1:Nreg,Yr1-1))
+       AllocPars(1,3) = (RHLfrac)*EstQuant(5)*SUM(RetCatch(3,1:Nreg,Yr1-1))/SUM(RetCatch(3:4,1:Nreg,Yr1-1))
+       AllocPars(1,4) = (RHLfrac)*EstQuant(5)*SUM(RetCatch(4,1:Nreg,Yr1-1))/SUM(RetCatch(3:4,1:Nreg,Yr1-1))
+      ENDIF
     ENDIF
 
+    !WRITE(*,*) Yr1-1
+    !WRITE(*,*) AllocPars(1,1:4)
 
 	OPEN(UNIT=14,FILE='hcr.ctl')
 
@@ -4528,7 +5390,7 @@
     IF (HCRspecs(3).EQ.3) EstMSY = EstQuant(5)
     IF (HCRspecs(3).EQ.51) EstMSY = EstQuant(2)
 
-    IF (HCRspecs(3).NE.61) THEN
+    IF (HCRspecs(3).LT.61) THEN
 
  	IF (EstMSY.LE.0d0) EstMSY = SUM(TotalCatch(1:Nflt,1:Nreg,(Lyear-4):Lyear))/5.d0
 	RBC = RBC/EstMSY
@@ -4546,22 +5408,26 @@
 
     
 
-!    WRITE(*,*) RBC
+    !WRITE(*,*) RBC
+
+    !STOP
 
 	RETURN
 
 	END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    SUBROUTINE GetNewCatch(Iyr)
+    SUBROUTINE GetNewCatch(Isim2,Iproj2,Iyr)
 
 !	This subroutine apportions catch by fleet and region
 
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Iflt,Ireg,DUM,Iyr,Npar,II,Ipar,RBCuse,ISEED,JJ,Jflt
+	INTEGER Iflt,Ireg,DUM,Iyr,Npar,II,Ipar,RBCuse,ISEED,JJ,Jflt,Ilen,Istk,Isim2,Iproj2
 	REAL*8 XNORM,Catchprops(2000),CatchVec(2000),AllocDev,ExtraCatch(1:Nfleet,1:Nreg),AllocCat,SpareCatch(1:Nfleet,1:Nreg)
+    REAL*8 TempCatLen1(1:Nlen),TempCatLen2(1:Nlen),Ntrips
+    CHARACTER*500 RecPerform
 
 	EXTERNAL XNORM
 
@@ -4758,7 +5624,41 @@
 	  
 !3026 CONTINUE  
 
+    !WRITE(*,*) Isim2, Iproj2, Iyr
 
+
+    !!!! FORCE CATCH FOR FLUKE RECREATIONAL FLEETS BASED ON OUTPUT OF ECON MODEL 
+    IF (HCRspecs(3).EQ.62) THEN
+     Ireg = 1
+     Istk = 1
+     OPEN(UNIT=14,FILE='rec-catch.out')
+     READ(14,*) (TempCatLen1(Ilen),Ilen=1,NLen)
+     READ(14,*) (TempCatLen2(Ilen),Ilen=1,NLen)
+     !READ(14,*) Ntrips
+     !CLOSE(14)
+
+     OPEN(UNIT=18,FILE='recoutput.out',POSITION='APPEND')
+      WRITE(18,'(I4,1x,I4,1x,I2,1x,100(F18.7,1x))') Isim2,Iyr,1,SUM(TempCatLen1(1:Nlen)),(TempCatLen1(Ilen),Ilen=1,NLen)
+      WRITE(18,'(I4,1x,I4,1x,I2,1x,100(F18.7,1x))') Isim2,Iyr,2,SUM(TempCatLen2(1:Nlen)),(TempCatLen2(Ilen),Ilen=1,NLen)
+     CLOSE(18)
+
+     OPEN(UNIT=18,FILE='recoutput2.out',POSITION='APPEND')
+     DO II=1,10
+      READ(14,'(A500)') RecPerform
+      WRITE(18,'(I4,1x,I4,1x,A500)') Isim2,Iyr,RecPerform
+     ENDDO
+     CLOSE(18)
+     CLOSE(14)
+
+     Catch(1,Ireg,Iyr) = (1.d0-RHLfrac)*RBCuse*Catchprops(1)/SUM(Catchprops(1:2))
+     Catch(2,Ireg,Iyr) = (1.d0-RHLfrac)*RBCuse*Catchprops(2)/SUM(Catchprops(1:2))
+     Catch(3,Ireg,Iyr) = 0.d0
+     Catch(4,Ireg,Iyr) = 0.d0
+     DO Ilen = 1,Nlen
+      Catch(3,Ireg,Iyr) = Catch(3,Ireg,Iyr) + TempCatLen1(Ilen)*SUM(WtLen(Ilen,Istk,1:2))/2.d0   !needs fixing for sex ratio at legnth!
+      Catch(4,Ireg,Iyr) = Catch(4,Ireg,Iyr) + (1.d0-RecDiscSurv)*TempCatLen2(Ilen)*SUM(WtLen(Ilen,Istk,1:2))/2.d0   !needs fixing for sex ratio at legnth!
+     ENDDO
+    ENDIF
 
 	IF (Diag.EQ.1) THEN
 	 WRITE(97,'(6x,120(I6,1x))') Iyr
@@ -5418,5 +6318,82 @@
 	RETURN
 
 	END 
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    SUBROUTINE GetRefPts(Isim2,Muse,Iyr)
+
+!!! This subroutinbe calculates the OM BMSY & FMSY given a particular year's fishing pattern
+
+	IMPLICIT NONE
+	INTEGER Isim2,II,Iyr,Ilen,Age,Iflt,Sex
+	REAL*8 Temp(3),Fuse,pSelAge(1:2,0:100),pCatch(1:10),pRetLen,Muse,Bval,Cval,Fage
+	REAL*8 GetYPR,GetFtarg,GetSPR,Maxsel
+
+	EXTERNAL GetFtarg,GetYPR,GetSPR
+
+	INCLUDE 'Sinatra.INC'
+
+	pCatch = 0.d0
+	DO Iflt=1,Nflt
+     pCatch(Iflt) = SUM(RetCatch(Iflt,1:Nreg,Iyr))
+	ENDDO
+	pCatch(1:Nflt) = pCatch(1:Nflt)/SUM(pCatch(1:Nflt))
+	
+	!Sex=1
+	pSelAge =0.d0
+	DO Iflt=1,Nflt
+	!WRITE(*,*) pCatch(Iflt)
+	DO Sex=1,2
+	DO Age=0,MaxAge
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Iyr)*pCatch(Iflt)
+	ENDDO
+	ENDDO
+	ENDDO
+
+!    Maxsel = 0.d0
+!    DO Sex=1,2
+!	DO Age=0,MaxAge
+!	 IF(pSelAge(Sex,Age).GT.Maxsel) Maxsel = pSelAge(Sex,Age)
+!	ENDDO
+!	ENDDO
+!	WRITE(*,*) pSelAge(1:2,0:MaxAge)
+!	pSelAge(1:2,0:MaxAge) = pSelAge(1:2,0:MaxAge)/Maxsel
+ !   WRITE(*,*) pSelAge(1:2,0:MaxAge)
+
+	!get the F ref point
+	Fuse = GetFtarg(Fref,Muse,Iyr,pSelAge,2)
+    WRITE(*,*) Fref, Fuse
+    Temp(1) = 0.5d0
+    DO Age=1,4
+     Temp(1) = Temp(1)*EXP(-1.d0*(M(1,1,1,Age-1,Iyr)+pSelAge(1,Age-1)*Fuse))
+    ENDDO
+    Temp(2) = Temp(1)
+    Temp(1) = 0.5d0
+    DO Age=1,4
+     Temp(1) = Temp(1)*EXP(-1.d0*(M(1,1,2,Age-1,Iyr)+pSelAge(2,Age-1)*Fuse))
+    ENDDO
+    Temp(3) = Temp(1)
+    Fage = SUM(Fuse*pSelAge(1:2,4)*Temp(2:3))/SUM(Temp(2:3))
+    Fage = SUM(Fuse*pSelAge(1:2,4))/2.d0
+
+    !get the Biomass ref point
+    Bval = Rzero(1)*GetSPR(Fuse,Muse,pSelAge,Iyr,2)
+    !get Yield at Fref
+    Cval = Rzero(1)*GetYPR(Fuse,Muse,pSelAge,Iyr,2)
+
+    OMrefpts(1) = Fuse
+    OMrefpts(2) = Bval
+    OMrefpts(3) = Cval
+    OMrefsel(1:2,0:MaxAge) = pSelAge(1:2,0:MaxAge)
+
+    OPEN(UNIT=18,FILE='refpts.out',POSITION='APPEND')
+    WRITE(18,'(I4,1x,I4,1x,5(F18.7,1x))') Isim2,Iyr,Fuse,Bval,Cval
+    CLOSE(18)
+
+
+    RETURN
+
+    END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

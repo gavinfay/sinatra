@@ -9,10 +9,12 @@
 !!###################################################
 
        INTEGER NZone,NStock,TopAge,Ymin,Ymax,Nfleet,NLenBin,Nsurvey
+       REAL*8 RecDiscSurv
 
        PARAMETER (NZone=2,NStock=1,TopAge=20)
        PARAMETER (Ymin=1935,Ymax=2080,Nfleet=5,NLenBin=55)
        PARAMETER (Nsurvey=5)
+       PARAMETER (RecDiscSurv=0.9)
 !      Control Parameters
 
        INTEGER Diag                                                  ! show diagnostic junk files
@@ -337,7 +339,9 @@
 
   double precision CurrRegs(1:3)
   REAL*8 RHLfrac
+  REAL*8 OMrefsel(1:2,0:TopAge)
+  REAL*8 OMrefpts(1:3)
 
-  COMMON / FLUKE / CurrRegs,RHLfrac
+  COMMON / FLUKE / CurrRegs,RHLfrac,OMrefpts,OMrefsel
 
 

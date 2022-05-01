@@ -3,7 +3,7 @@
 !	
 !	GAVIN FAY
 !	last modified on:
-!	07/30/2007
+!	02/21/2022
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !	This subroutine deals with generating the historical data
@@ -664,6 +664,7 @@
 
 	!open the output file for appending
     OPEN(UNIT=32,FILE='FisheryLengths.inp',POSITION='APPEND')
+    OPEN(UNIT=38,FILE='FisheryLengths2019.out',POSITION='APPEND')
 
 	!loop over type of composition data
   	 DO 8600 II=1,3
@@ -737,6 +738,9 @@
 		   !write the comp to the output file
 		   !Tier 3
 		   IF (Tier(1).EQ.3) WRITE(32,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
+		   !MAFMC fluke recreational discards
+		   IF (Tier(1).EQ.62) WRITE(32,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
+		   IF (Tier(1).EQ.62.AND.Diag.EQ.1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
 		   !SS2 output
 		   IF (Tier(1).EQ.1) THEN
 		    IF (II.EQ.1) Part = 2
@@ -754,6 +758,7 @@
 
 
 	CLOSE(32)
+	CLOSE(38)
 
 	RETURN
 
@@ -870,6 +875,8 @@
     OPEN(UNIT=31,FILE='FisheryAges.inp',POSITION='APPEND')
     OPEN(UNIT=36,FILE='CAFAges.inp',POSITION='APPEND')
 
+    OPEN(UNIT=38,FILE='FisheryAges2019.out',POSITION='APPEND') 
+
 
 	!loop over type of composition data
   	 DO 8200 II=1,3
@@ -933,6 +940,8 @@
 		   !write the comp to the output file
 		   !tier 3
 		   IF (Tier(1).EQ.3) WRITE(31,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)
+		   IF (Tier(1).EQ.62) WRITE(31,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)
+		   IF (Tier(1).EQ.62.AND.Diag.EQ.1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)		   
 		   !SS2 output
 		   IF (Tier(1).EQ.1) THEN
 		    IF (II.EQ.1) Part = 2
@@ -976,6 +985,7 @@
 
 	CLOSE(31)
     CLOSE(36)
+    CLOSE(38)
 
 	RETURN
 
@@ -1207,6 +1217,8 @@
 
 	!normalise to get proportions
 	LenProps = LenProps/SUM(LenProps(1:Nlen))
+
+	!WRITE(*,'(I4,1x,I2,1x,I2,1x,I1,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,(LenProps(Ilen),Ilen=1,Nlen)
 
 	IF (Diag.EQ.1) WRITE(98,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,II,Id,(LenProps(Ilen),Ilen=1,Nlen)
 
@@ -1700,7 +1712,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !	This subroutine generates the data for a given year
-!	Currently only deals with fishery age comps
+!	
 !	
     SUBROUTINE GenData(Iyr,Iflag)
 
@@ -1840,7 +1852,7 @@
 
 	INTEGER Iyr,Istk,Age,II,Sex,Iflt
 	REAL*8 Temp,NewDev,Temp2,Catchprops(1:10,1:10),Temp3
-	REAL*8 Fuse,GetFtarg,pSelAge(0:100),Muse
+	REAL*8 Fuse,GetFtarg,pSelAge(1:2,0:100),Muse
 	REAL*8 XNORM
 
 	EXTERNAL XNORM
@@ -1849,6 +1861,7 @@
 
     IF (Diag.EQ.1) WRITE(98,*) 'biomass estimate for pseudoasst for ',Iyr
     !WRITE(*,*) 'prf ',PseudoRefSpecs(1:4)
+    
 	Istk=1
 	Temp = SpawBio(Istk,0,Iyr)   !/SBiozero(Istk)
 	IF (Iyr.EQ.Lyear) THEN
@@ -1873,11 +1886,13 @@
 
     !2019/07/30
 	Catchprops(1:Nflt,1:Nreg) = TotalCatch(1:Nflt,1:Nreg,Iyr)/SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))
-	Temp2 = SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))/SUM(Catchprops(1:Nflt,1:Nreg)*RetVBio(1:Nflt,1:Nreg,Iyr))
+	!WRITE(*,*) Catchprops(1:Nflt,1:Nreg)
+	!WRITE(*,*) TotalCatch(1:Nflt,1:Nreg,Iyr)
+	!WRITE(*,*) RetVBio(1:Nflt,1:Nreg,Iyr)
+	Temp2 = SUM(Catchprops(1:Nflt,1:Nreg)*TotalCatch(1:Nflt,1:Nreg,Iyr)/RetVBio(1:Nflt,1:Nreg,Iyr))
 	!WRITE(*,*) Temp2
 	Temp2 = -1.d0*LOG(1.d0-Temp2)
 	!WRITE(*,*) Temp2
-	!STOP
 
 	IF (Iyr.EQ.Lyear) THEN
 	 NewDev = XNORM(5,0.d0,PseudoRefSpecs(2),ISEEDX)
@@ -1899,6 +1914,10 @@
 
     !get specifications
 	OPEN(UNIT=13,FILE='flukerefs.ctl')
+	IF (HCRspecs(3).EQ.62) THEN
+	 CLOSE(13)
+	 OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+	ENDIF
 
 	DO II =1,10
 	 READ(13,*)
@@ -1916,12 +1935,137 @@
 	DO Iflt=1,Nflt
 	!WRITE(*,*) pCatch(Iflt)
 	DO Age=0,MaxAge
- 	 pSelAge(Age) = pSelAge(Age) + SelAge(Iflt,1,Sex,Age,Iyr)*SUM(Catchprops(Iflt,1:Nreg))
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Iyr)*SUM(Catchprops(Iflt,1:Nreg))
 	ENDDO
 	ENDDO
 
-	Temp3 = GetFtarg(Fref,Muse,Iyr,pSelAge)
-	!WRITE(*,*) Temp3
+	Temp3 = GetFtarg(Fref,Muse,Iyr,pSelAge,1)
+	!WRITE(*,*) Fref,Muse,Temp3
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XNORM(5,0.d0,PseudoRefSpecs(4),ISEEDX)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(3)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XNORM(5,0.d0,PseudoRefSpecs(4),ISEEDX)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(3) = NewDev
+	!WRITE(*,*) Temp3,NewDev
+	Temp3 = Temp3*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+    !WRITE(*,*) Temp3
+
+
+    OPEN(UNIT=39,FILE='estB.inp',POSITION='APPEND')
+	WRITE(39,'(I4,1x,F20.4,1x,F7.4,1x,F7.4)') Iyr,Temp,Temp2,Temp3
+	CLOSE(39)
+
+
+	RETURN
+
+	END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	Get the pseudo ref pts
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   This subroutine generates biomass for a OFL-based pseudo-assessment
+!
+	SUBROUTINE pseudorefData3(Iyr)
+
+	IMPLICIT NONE
+	INCLUDE 'Sinatra.INC'
+
+	INTEGER Iyr,Istk,Age,II,Sex,Iflt
+	REAL*8 Temp,NewDev,Temp2,Catchprops(1:10,1:10),Temp3
+	REAL*8 Fuse,GetFtarg,pSelAge(1:2,0:100),Muse
+	REAL*8 XNORM
+
+	EXTERNAL XNORM
+	EXTERNAL GetFtarg
+
+
+    IF (Diag.EQ.1) WRITE(98,*) 'biomass estimate for pseudoasst for ',Iyr
+    !WRITE(*,*) 'prf ',PseudoRefSpecs(1:4)
+    
+	Istk=1
+	Temp = SpawBio(Istk,0,Iyr)   !/SBiozero(Istk)
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XNORM(5,0.d0,PseudoRefSpecs(1),ISEEDX)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(1) 
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XNORM(5,0.d0,PseudoRefSpecs(1),ISEEDX)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(1) = NewDev
+	Temp = Temp*EXP(NewDev-0.5*(PseudoRefSpecs(1)**2.d0))
+    !WRITE(*,*) Temp
+
+
+    !Now F
+	!Catchprops(1:Nflt,1:Nreg) = TotalCatch(1:Nflt,1:Nreg,Iyr)/SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))
+	!Temp2 = SUM(Ufleet(1:Nflt,1:Nreg,Iyr)*Catchprops(1:Nflt,1:Nreg))
+	!WRITE(*,*) Temp2
+	!Temp2 = -1.d0*LOG(1.d0-Temp2)
+	!WRITE(*,*) Temp2
+
+    !2019/07/30
+	Catchprops(1:Nflt,1:Nreg) = TotalCatch(1:Nflt,1:Nreg,Iyr)/SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))
+	!WRITE(*,*) Catchprops(1:Nflt,1:Nreg)
+	!WRITE(*,*) TotalCatch(1:Nflt,1:Nreg,Iyr)
+	!WRITE(*,*) RetVBio(1:Nflt,1:Nreg,Iyr)
+	Temp2 = SUM(Catchprops(1:Nflt,1:Nreg)*TotalCatch(1:Nflt,1:Nreg,Iyr)/RetVBio(1:Nflt,1:Nreg,Iyr))
+	!WRITE(*,*) Temp2
+	Temp2 = -1.d0*LOG(1.d0-Temp2)
+	!WRITE(*,*) Temp2
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XNORM(5,0.d0,PseudoRefSpecs(2),ISEEDX)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(2)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XNORM(5,0.d0,PseudoRefSpecs(2),ISEEDX)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(2) = NewDev
+	!WRITE(*,*) Temp2,NewDev
+	Temp2 = Temp2*EXP(NewDev-0.5*(PseudoRefSpecs(2)**2.d0))
+    !WRITE(*,*) Temp2
+
+
+
+
+    !get the FMSY ref point
+
+    !get specifications
+	OPEN(UNIT=13,FILE='flukerefs.ctl')
+	IF (HCRspecs(3).EQ.62) THEN
+	 CLOSE(13)
+	 OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+	ENDIF
+
+	DO II =1,10
+	 READ(13,*)
+	ENDDO
+	READ(13,*) Ftype
+	READ(13,*)
+	READ(13,*) Muse
+	READ(13,*)
+	READ(13,*) Fref
+	
+    CLOSE(13)
+
+	Sex=1
+	pSelAge =0.d0
+	DO Iflt=1,Nflt
+	!WRITE(*,*) pCatch(Iflt)
+	DO Age=0,MaxAge
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Iyr)*SUM(Catchprops(Iflt,1:Nreg))
+	ENDDO
+	ENDDO
+
+	Temp3 = GetFtarg(Fref,Muse,Iyr,pSelAge,1)
+	!WRITE(*,*) Fref,Muse,Temp3
 
 	IF (Iyr.EQ.Lyear) THEN
 	 NewDev = XNORM(5,0.d0,PseudoRefSpecs(4),ISEEDX)
@@ -3180,6 +3324,25 @@
    READ(13,*) Pseudorefspecs(4)   
 
 	CLOSE(13)
+
+
+    IF (HCRspecs(3).EQ.62) THEN
+
+   OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+
+   READ(13,*)
+   READ(13,*)
+   READ(13,*) Pseudorefspecs(1)
+   READ(13,*)
+   READ(13,*) Pseudorefspecs(2)
+   READ(13,*)
+   READ(13,*) Pseudorefspecs(3)
+   READ(13,*)
+   READ(13,*) Pseudorefspecs(4)   
+
+	CLOSE(13)
+
+   ENDIF
 
     IF (HCRspecs(3).EQ.51) THEN
 

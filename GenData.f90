@@ -740,7 +740,7 @@
 		   IF (Tier(1).EQ.3) WRITE(32,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
 		   !MAFMC fluke recreational discards
 		   IF (Tier(1).EQ.62) WRITE(32,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
-		   IF (Tier(1).EQ.62.AND.Diag.EQ.1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
+		   IF (Tier(1).EQ.62.AND.Diag.EQ.-1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.0,1x))') Iyr,Iflt,Ireg,Sex,II,NLens(Iflt,Ireg,Sex),(LenComp(Ilen),Ilen=1,Nlen)
 		   !SS2 output
 		   IF (Tier(1).EQ.1) THEN
 		    IF (II.EQ.1) Part = 2
@@ -941,7 +941,7 @@
 		   !tier 3
 		   IF (Tier(1).EQ.3) WRITE(31,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)
 		   IF (Tier(1).EQ.62) WRITE(31,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)
-		   IF (Tier(1).EQ.62.AND.Diag.EQ.1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)		   
+		   IF (Tier(1).EQ.62.AND.Diag.EQ.-1.AND.Iyr.EQ.2019) WRITE(38,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I12,1x,200(F10.0,1x))') Iyr,Iflt,Ireg,Sex,II,Nages(Iflt,Ireg,Sex),(AgeComp(Age),Age=1,MaxAge+1)		   
 		   !SS2 output
 		   IF (Tier(1).EQ.1) THEN
 		    IF (II.EQ.1) Part = 2
@@ -1760,7 +1760,8 @@
 
 !	****pseudo Tier 1 assessment****
 !	IF (Iyr.GE.Lyear) CALL pseudorefData(Iyr)
-	IF (Iyr.GE.Lyear) CALL pseudorefData2(Iyr)	
+!	IF (Iyr.GE.Lyear) CALL pseudorefData2(Iyr)
+	IF (Iyr.GE.Lyear) CALL pseudorefData4(Iyr)	
     
 	ELSE
 
@@ -1850,8 +1851,8 @@
 	IMPLICIT NONE
 	INCLUDE 'Sinatra.INC'
 
-	INTEGER Iyr,Istk,Age,II,Sex,Iflt
-	REAL*8 Temp,NewDev,Temp2,Catchprops(1:10,1:10),Temp3
+	INTEGER Iyr,Istk,Age,II,Sex,Iflt,u1,u2,u3
+	REAL*8 Temp,NewDev,Temp2,Catchprops(1:10,1:10),Temp3,Temp4,Temp5
 	REAL*8 Fuse,GetFtarg,pSelAge(1:2,0:100),Muse
 	REAL*8 XNORM
 
@@ -1956,10 +1957,306 @@
     !WRITE(*,*) Temp3
 
 
+    !Recruitment trend
+    u1 = Iyr - 2
+    u2 = Iyr - 3
+    u3 = Iyr - 5
+    IF (u1.LE.Fyear) THEN
+     u1 = Fyear+1
+     u2 = Fyear+1
+     u3 = Fyear+1
+    ELSEIF (u2.LE.Fyear) THEN
+     u2 = Fyear+1
+     u3 = Fyear+1
+    ELSEIF (u3.LE.Fyear) THEN
+     u3 = Fyear+1
+    ENDIF
+
+!    Temp4 = (SUM(Recruits(1:Nstk,1:Nreg,(Iyr-2):Iyr))/3) / (SUM(Recruits(1:Nstk,1:Nreg,(Iyr-5):(Iyr-3))/3))
+    Temp4 = (SUM(Recruits(1:Nstk,1:Nreg,u1:Iyr))/(Iyr-u1+1)) / (SUM(Recruits(1:Nstk,1:Nreg,u3:u2)/(u2-u3+1)))
+    IF (Iyr.EQ.Fyear) Temp4  = 1.d0
+
+    !Biomass trend
+    u1 = Iyr - 2
+    u2 = Iyr - 3
+
+    IF (Iyr-2.LT.Fyear) THEN
+     u1 = Fyear
+     u2 = Fyear
+    ELSEIF (Iyr-3.LT.Fyear) THEN
+     u2 = Fyear
+    ENDIF
+
+!    Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))
+    Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:(Iyr-1)))
+    Temp5 = Temp5/(Iyr-u1+1)
+
     OPEN(UNIT=39,FILE='estB.inp',POSITION='APPEND')
-	WRITE(39,'(I4,1x,F20.4,1x,F7.4,1x,F7.4)') Iyr,Temp,Temp2,Temp3
+	WRITE(39,'(I4,1x,F20.4,1x,F7.4,1x,F7.4,1x,F7.4,1x,F7.4)') Iyr,Temp,Temp2,Temp3,Temp4,Temp5
 	CLOSE(39)
 
+
+	RETURN
+
+	END
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	Get the pseudo assessment
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!   This subroutine generates stock assessment results based on a multivariate normal correlated through time
+!   updated 2024-06-13
+!
+	SUBROUTINE pseudorefData4(Iyr)
+
+	IMPLICIT NONE
+	INCLUDE 'Sinatra.INC'
+
+	INTEGER Iyr,Istk,Age,II,Sex,Iflt,u1,u2,u3,Ilen,Ireg
+	REAL*8 Temp,NewDevs(6),Temp2,Catchprops(1:10,1:10),Temp3,Temp4,Temp5,Temp6
+	REAL*8 Fuse,GetFtarg,pSelAge(1:2,0:100),Muse,TempVBio, TempSel(NLenBin)
+	REAL*8 XNORM, XTEMP(6), MEANS(6), TT(6,6), SG(6), NewDev, GetSPR
+
+	EXTERNAL XNORM
+	EXTERNAL GetFtarg
+	EXTERNAL GetSPR
+
+
+    IF (Diag.EQ.1) WRITE(98,*) 'biomass estimate for pseudoasst for ',Iyr
+    !WRITE(*,*) 'prf ',PseudoRefSpecs(1:4)
+    
+    MEANS = 0.d0
+    SG = PseudoRefSpecs(4)
+    TT = 0.d0
+    DO II = 1,5
+     TT(II,II) = 1.d0
+    ENDDO
+    TT(1,2) = -0.75
+    TT(2,1) = -0.75
+    TT(1,4) = 0.7
+    TT(4,1) = 0.7
+    TT(1,5) = 0.85
+    TT(5,1) = 0.85
+    TT(1,6) = 0.35
+    TT(6,1) = 0.35
+    TT(2,3) = 0.95
+    TT(3,2) = 0.95
+    TT(2,4) = -0.5
+    TT(4,2) = -0.5
+    TT(2,5) = -0.7
+    TT(5,2) = -0.7
+    TT(2,6) = 0.1
+    TT(6,2) = 0.1
+    TT(4,5) = 0.7
+    TT(5,4) = 0.7
+    TT(4,6) = 0.3
+    TT(6,4) = 0.3
+    TT(5,6) = 0.2
+    TT(6,5) = 0.2
+    !WRITE(*,*) TT
+    !STOP
+
+!    GenMult(VEC,MEANS,ISEED,NPARS,TT,SG,MPA)
+    CALL GenMult(XTEMP, MEANS, ISEEDX, 6, TT, SG, 6)
+    IF (Iyr.EQ.2020) WRITE(*,*) XTEMP
+    !WRITE(*,*) SG
+    !IF (Iyr.EQ.2020) STOP
+
+	Istk=1
+	Temp = SpawBio(Istk,0,Iyr)   !/SBiozero(Istk)
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(1) 
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(1) 
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(1)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(1) = NewDev
+	Temp = Temp*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+    !WRITE(*,*) Temp
+
+
+    !Now F
+	!Catchprops(1:Nflt,1:Nreg) = TotalCatch(1:Nflt,1:Nreg,Iyr)/SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))
+	!Temp2 = SUM(Ufleet(1:Nflt,1:Nreg,Iyr)*Catchprops(1:Nflt,1:Nreg))
+	!WRITE(*,*) Temp2
+	!Temp2 = -1.d0*LOG(1.d0-Temp2)
+	!WRITE(*,*) Temp2
+
+    !2019/07/30
+	Catchprops(1:Nflt,1:Nreg) = TotalCatch(1:Nflt,1:Nreg,Iyr)/SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))
+	!WRITE(*,*) Catchprops(1:Nflt,1:Nreg)
+	!WRITE(*,*) TotalCatch(1:Nflt,1:Nreg,Iyr)
+	!WRITE(*,*) RetVBio(1:Nflt,1:Nreg,Iyr)
+
+    TempVBio = 0.d0
+    TempSel = 0.d0
+	DO Iflt=1,Nflt
+	 TempSel = TempSel + SUM(Catchprops(Iflt,1:Nreg))*Sellen(Iflt,1:Nlen,Iyr)
+	ENDDO
+	 DO Ireg=1,Nreg
+	  DO Istk=1,Nstk
+	   DO Sex=1,2
+	    DO Age=0,MaxAge
+  		  DO Ilen=1,Nlen
+		   TempVBio = TempVBio + WtLen(Ilen,Istk,Sex)*TempSel(Ilen)*Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Iyr)*EXP(-0.5d0*M(Istk,Ireg,Sex,Age,Iyr))
+!		   IF (Age.EQ.0) Temp = Temp*SelAge(Iflt,Istk,Sex,Age,Iyr)
+!		  WRITE(98,*) Year,Iflt,Sex,Age
+!		  WRITE(98,*) 
+     ENDDO
+     ENDDO
+     ENDDO
+     ENDDO
+     ENDDO
+    !WRITE(*,*) TempSel
+    !WRITE(*,*) TempVBio
+
+	!Temp2 = SUM(Catchprops(1:Nflt,1:Nreg)*TotalCatch(1:Nflt,1:Nreg,Iyr)/RetVBio(1:Nflt,1:Nreg,Iyr))
+    Temp2 = SUM(TotalCatch(1:Nflt,1:Nreg,Iyr))/TempVBio
+	!WRITE(*,*) Temp2
+	Temp2 = -1.d0*LOG(1.d0-Temp2)
+	IF (Iyr.EQ.2020) WRITE(*,*) Temp2
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(2)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(2)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(2)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(2) = NewDev
+	!WRITE(*,*) Temp2,NewDev
+	Temp2 = Temp2*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+    !WRITE(*,*) Temp2
+
+
+
+
+    !get the FMSY ref point
+
+    !get specifications
+	OPEN(UNIT=13,FILE='flukerefs.ctl')
+	IF (HCRspecs(3).GE.62) THEN
+	 CLOSE(13)
+	 OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
+	ENDIF
+
+	DO II =1,10
+	 READ(13,*)
+	ENDDO
+	READ(13,*) Ftype
+	READ(13,*)
+	READ(13,*) Muse
+	READ(13,*)
+	READ(13,*) Fref
+	
+    CLOSE(13)
+
+	Sex=1
+	pSelAge =0.d0
+	DO Iflt=1,Nflt
+	!WRITE(*,*) pCatch(Iflt)
+	DO Age=0,MaxAge
+ 	 pSelAge(Sex,Age) = pSelAge(Sex,Age) + SelAge(Iflt,1,Sex,Age,Iyr)*SUM(Catchprops(Iflt,1:Nreg))
+	ENDDO
+	ENDDO
+
+	Temp3 = GetFtarg(Fref,Muse,Iyr,pSelAge,1)
+	Temp6 = Rzero(1)*GetSPR(Temp3,Muse,pSelAge,Iyr,1)
+	!IF (Iyr.EQ.2020) THEN
+	! WRITE(*,*) Fref,Muse,Temp3,Temp6
+    ! STOP
+    !ENDIF
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(3)
+	 !WRITE(*,*) Temp,NewDev
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(3)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(3)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(3) = NewDev
+	!WRITE(*,*) Temp3,NewDev
+	Temp3 = Temp3*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+    !WRITE(*,*) Temp3
+
+
+    !Recruitment trend
+    u1 = Iyr - 2
+    u2 = Iyr - 3
+    u3 = Iyr - 5
+    IF (u1.LE.Fyear) THEN
+     u1 = Fyear+1
+     u2 = Fyear+1
+     u3 = Fyear+1
+    ELSEIF (u2.LE.Fyear) THEN
+     u2 = Fyear+1
+     u3 = Fyear+1
+    ELSEIF (u3.LE.Fyear) THEN
+     u3 = Fyear+1
+    ENDIF
+
+!    Temp4 = (SUM(Recruits(1:Nstk,1:Nreg,(Iyr-2):Iyr))/3) / (SUM(Recruits(1:Nstk,1:Nreg,(Iyr-5):(Iyr-3))/3))
+    Temp4 = (SUM(Recruits(1:Nstk,1:Nreg,u1:Iyr))/(Iyr-u1+1)) / (SUM(Recruits(1:Nstk,1:Nreg,u3:u2)/(u2-u3+1)))
+    IF (Iyr.EQ.Fyear) Temp4  = 1.d0
+
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(4)
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(4)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(4)
+    ENDIF
+    LastDev(4) = NewDev
+	Temp4 = Temp4*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+
+
+    !Biomass trend
+    u1 = Iyr - 2
+    u2 = Iyr - 3
+
+    IF (Iyr-2.LT.Fyear) THEN
+     u1 = Fyear
+     u2 = Fyear
+    ELSEIF (Iyr-3.LT.Fyear) THEN
+     u2 = Fyear
+    ENDIF
+
+!    Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))
+    Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:(Iyr-1)))
+    Temp5 = Temp5/(Iyr-u1+1)
+
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(5)
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(5)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(5)
+    ENDIF
+    LastDev(5) = NewDev
+	Temp5 = Temp5*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+
+    
+    ! BMSY
+	IF (Iyr.EQ.Lyear) THEN
+	 NewDev = XTEMP(6)
+	ELSE
+	 NewDev = PseudoRefSpecs(3)*LastDev(6)
+	 NewDev = NewDev + SQRT(1.d0-(PseudoRefSpecs(3)**2.d0))*XTEMP(6)
+     !WRITE(*,*) Temp,NewDev,LastDev
+    ENDIF
+    LastDev(6) = NewDev
+	!WRITE(*,*) Temp3,NewDev
+	Temp6 = Temp6*EXP(NewDev-0.5*(PseudoRefSpecs(4)**2.d0))
+    !WRITE(*,*) Temp6
+
+
+    OPEN(UNIT=39,FILE='estB.inp',POSITION='APPEND')
+	WRITE(39,'(I4,1x,F16.4,1x,F7.4,1x,F7.4,1x,F7.4,1x,F7.4,1x,F16.4)') Iyr,Temp,Temp2,Temp3,Temp4,Temp5,Temp6
+	CLOSE(39)
+
+    !STOP
 
 	RETURN
 
@@ -3326,7 +3623,7 @@
 	CLOSE(13)
 
 
-    IF (HCRspecs(3).EQ.62) THEN
+    IF (HCRspecs(3).GE.62) THEN
 
    OPEN(UNIT=13,FILE='fluke-recdisc.ctl')
 
@@ -4138,6 +4435,7 @@
 
     WRITE(18,'(A)') '#_Number_of_datafiles: 1'
     WRITE(18,'(A)') '#_start_nudata: 2'
+
 
 	IF (SUM(RetCatch(1:Nflt,1:Nreg,1915)).GT.0) THEN
 	 WRITE(18,'(I4)') 1915

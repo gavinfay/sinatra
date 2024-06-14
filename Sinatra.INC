@@ -4,16 +4,16 @@
 !#G.Fay 
 !#University of Washington
 !#2/27/2007
-!#last update 20 August 2009
+!#last update 11 June 2024
 !#
 !!###################################################
 
        INTEGER NZone,NStock,TopAge,Ymin,Ymax,Nfleet,NLenBin,Nsurvey
        REAL*8 RecDiscSurv
 
-       PARAMETER (NZone=2,NStock=1,TopAge=20)
-       PARAMETER (Ymin=1935,Ymax=2080,Nfleet=5,NLenBin=55)
-       PARAMETER (Nsurvey=5)
+       PARAMETER (NZone=2,NStock=1,TopAge=10)
+       PARAMETER (Ymin=1915,Ymax=2060,Nfleet=5,NLenBin=55)
+       PARAMETER (Nsurvey=1)
        PARAMETER (RecDiscSurv=0.9)
 !      Control Parameters
 
@@ -172,9 +172,10 @@
        REAL*8 SpawBio(1:Nstock,0:Nzone,Ymin:Ymax)                ! spawning biomass by stock,region,time
        REAL*8 VBio(1:Nfleet,1:Nzone,Ymin:Ymax)                   ! vulnerable biomass by fleet,region,time
        REAL*8 RetVBio(1:Nfleet,1:Nzone,Ymin:Ymax)                ! retainable vulnerable biomass by fleet,region,time
+       REAL*8 RetVBioSex(1:Nfleet,1:Nzone,1:2,Ymin:Ymax)                ! retainable vulnerable biomass by fleet,region,time
+       REAL*8 FemSpawBio(1:Nstock,0:Nzone,Ymin:Ymax)                ! spawning biomass by stock,region,time
 
-
-       COMMON / Derived / N,SpawBio,VBio,RetVBio
+       COMMON / Derived / N,SpawBio,VBio,RetVBio,RetVBioSex,FemSpawBio
 
 ! 1.2 Data
 
@@ -300,7 +301,7 @@
 	REAL*8 Tier3R(10)
 	INTEGER Tier3I(10)
 	REAL*8 MaxChange
-  REAL*8 LastDev(3)
+  REAL*8 LastDev(6)
 
 	REAL*8 PseudoRefSpecs(4)
 
@@ -340,8 +341,9 @@
   double precision CurrRegs(1:3)
   REAL*8 RHLfrac
   REAL*8 OMrefsel(1:2,0:TopAge)
-  REAL*8 OMrefpts(1:3)
+  REAL*8 OMrefpts(1:4)
+  INTEGER CurrBin,RegChange
 
-  COMMON / FLUKE / CurrRegs,RHLfrac,OMrefpts,OMrefsel
+  COMMON / FLUKE / CurrRegs,RHLfrac,OMrefpts,OMrefsel,CurrBin,RegChange
 
 

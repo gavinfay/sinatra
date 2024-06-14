@@ -1194,7 +1194,8 @@
 	!check for allocation of fleet to this region
 	IF (Id.EQ.1.AND.FleetRegions(Iflt,Ireg).EQ.0) RETURN
 	!check for allocation of survey to this region
-    IF (Id.EQ.2.AND.SurveyReg(Iflt).NE.Ireg) RETURN
+!	2024-06-13, GF deleting next line for error troubleshooting purposes	
+!    IF (Id.EQ.2.AND.SurveyReg(Iflt).NE.Ireg) RETURN
 
 
 	DO 8401 Ilen=1,Nlen

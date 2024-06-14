@@ -12,7 +12,7 @@
        REAL*8 RecDiscSurv
 
        PARAMETER (NZone=2,NStock=1,TopAge=10)
-       PARAMETER (Ymin=1990,Ymax=2060,Nfleet=5,NLenBin=55)
+       PARAMETER (Ymin=1990,Ymax=2060,Nfleet=5,NLenBin=45)
        PARAMETER (Nsurvey=1)
        PARAMETER (RecDiscSurv=0.9)
 !      Control Parameters

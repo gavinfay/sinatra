@@ -5303,7 +5303,7 @@
     CALL GetVBio(Fyear)
 
 	!SB Zero
-	SBioZero = SpawBio(1:Nstk,0,Fyear)
+	SBioZero(1:Nstk) = SpawBio(1:Nstk,0,Fyear)
 
 	CLOSE(98)
 

@@ -2092,7 +2092,9 @@
     TempVBio = 0.d0
     TempSel = 0.d0
 	DO Iflt=1,Nflt
-	 TempSel(1:Nlen) = TempSel(1:Nlen) + SUM(Catchprops(Iflt,1:Nreg))*Sellen(Iflt,1:Nlen,Iyr)
+	 DO Ilen=1,Nlen
+	  TempSel(Ilen) = TempSel(Ilen) + SUM(Catchprops(Iflt,1:Nreg))*Sellen(Iflt,Ilen,Iyr)
+	 ENDDO
 	ENDDO
 	 DO Ireg=1,Nreg
 	  DO Istk=1,Nstk

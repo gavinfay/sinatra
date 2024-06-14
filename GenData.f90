@@ -2217,22 +2217,28 @@
 
 
     !Biomass trend
-    u1 = Iyr - 2
-    u2 = Iyr - 3
-    u3 = Iyr - 1
-    IF (Iyr-2.LT.Fyear) THEN
-     u1 = Fyear
-     u2 = Fyear
-    ELSEIF (Iyr-3.LT.Fyear) THEN
-     u2 = Fyear
-    ENDIF
-    IF (Iyr-1.LT.Fyear) u3 = Fyear
+!    u1 = Iyr - 2
+!    u2 = Iyr - 3
+!    u3 = Iyr - 1
+!    IF (Iyr-2.LT.Fyear) THEN
+!     u1 = Fyear
+!     u2 = Fyear
+!    ELSEIF (Iyr-3.LT.Fyear) THEN
+!     u2 = Fyear
+!    ENDIF
+!    IF (Iyr-1.LT.Fyear) u3 = Fyear
 
-    WRITE(*,*) Iyr,u1,u2,u3
+ !   WRITE(*,*) Iyr,u1,u2,u3
 
 !    Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))
-    Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:u3))
-    Temp5 = Temp5/(Iyr-u1+1)
+    
+    IF (Iyr.GE.(Fyear+3)) Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))/3
+    IF (Iyr.EQ.(Fyear+2)) Temp5 = SUM(SpawBio(Istk,0,(Iyr-1):Iyr) / SpawBio(Istk,0,(Iyr-2):(Iyr-1)))/2
+    IF (Iyr.EQ.(Fyear+1)) Temp5 = SUM(SpawBio(Istk,0,Iyr) / SpawBio(Istk,0,Iyr-1))
+    IF (Iyr.EQ.Fyear) Temp5 = 1.d0
+
+!    Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:u3))
+!    Temp5 = Temp5/(Iyr-u1+1)
 
 	IF (Iyr.EQ.Lyear) THEN
 	 NewDev = XTEMP(5)

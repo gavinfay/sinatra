@@ -1290,7 +1290,7 @@
 
 	IF (Id.EQ.1.AND.FleetRegions(Iflt,Ireg).EQ.0) RETURN
 	!check for allocation of survey to this region
-	IF (Id.EQ.2.AND.SurveyReg(Iflt).NE.Ireg) RETURN
+	!IF (Id.EQ.2.AND.SurveyReg(Iflt).NE.Ireg) RETURN
 
 
 	DO 8400 Age=0,MaxAge

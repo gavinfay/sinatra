@@ -2234,7 +2234,7 @@
     
     IF (Iyr.GE.(Fyear+3)) Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))/3
     IF (Iyr.EQ.(Fyear+2)) Temp5 = SUM(SpawBio(Istk,0,(Iyr-1):Iyr) / SpawBio(Istk,0,(Iyr-2):(Iyr-1)))/2
-    IF (Iyr.EQ.(Fyear+1)) Temp5 = SUM(SpawBio(Istk,0,Iyr) / SpawBio(Istk,0,Iyr-1))
+    IF (Iyr.EQ.(Fyear+1)) Temp5 = SpawBio(Istk,0,Iyr) / SpawBio(Istk,0,Iyr-1)
     IF (Iyr.EQ.Fyear) Temp5 = 1.d0
 
 !    Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:u3))

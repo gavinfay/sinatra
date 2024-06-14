@@ -2228,7 +2228,7 @@
     ENDIF
     IF (Iyr-1.LT.Fyear) u3 = Fyear
 
-    WRITE(*,*) Iyr,u1,u2
+    WRITE(*,*) Iyr,u1,u2,u3
 
 !    Temp5 = SUM(SpawBio(Istk,0,(Iyr-2):Iyr) / SpawBio(Istk,0,(Iyr-3):(Iyr-1)))
     Temp5 = SUM(SpawBio(Istk,0,u1:Iyr) / SpawBio(Istk,0,u2:u3))

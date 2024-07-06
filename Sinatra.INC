@@ -341,9 +341,9 @@
   double precision CurrRegs(1:3)
   REAL*8 RHLfrac
   REAL*8 OMrefsel(1:2,0:TopAge)
-  REAL*8 OMrefpts(1:4)
+  REAL*8 OMrefpts(1:4), TrueF(Ymin:Ymax)
   INTEGER CurrBin,RegChange
 
-  COMMON / FLUKE / CurrRegs,RHLfrac,OMrefpts,OMrefsel,CurrBin,RegChange
+  COMMON / FLUKE / CurrRegs,RHLfrac,OMrefpts,OMrefsel,CurrBin,RegChange,TrueF
 
 

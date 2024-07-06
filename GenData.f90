@@ -1176,6 +1176,59 @@
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	This subroutine finds the numbers at length for a given fleet/survey, region, sex
+
+	SUBROUTINE GetLenNums(Id,II,Iflt,Ireg,Sex,Iyr,LenProps)
+
+	IMPLICIT NONE
+	INCLUDE 'Sinatra.INC'
+
+	INTEGER Id,II,Iflt,Ireg,Sex,Iyr,Istk,Age,Ilen
+	REAL*8 LenProps(2000),RetTilde,Timing
+
+	Timing = 0.5d0
+
+	LenProps = 0.d0
+
+	!check for allocation of fleet to this region
+	IF (Id.EQ.1.AND.FleetRegions(Iflt,Ireg).EQ.0) RETURN
+	!check for allocation of survey to this region
+!	2024-06-13, GF deleting next line for error troubleshooting purposes	
+!    IF (Id.EQ.2.AND.SurveyReg(Iflt).NE.Ireg) RETURN
+
+
+	DO 8401 Ilen=1,Nlen
+	 LenProps(Ilen) = 0.d0
+	  !equation 1.39
+	  IF (Id.EQ.2.OR.II.EQ.2) RetTilde = 1.d0
+	  IF (Id.EQ.1.AND.II.EQ.1) RetTilde = RetLen(Iflt,Ilen,Iyr)
+	  IF (Id.EQ.1.AND.II.EQ.3) RetTilde = 1.d0-RetLen(Iflt,Ilen,Iyr)
+	  !eqn 1.38
+	  DO 8402 Istk=1,Nstk
+	   DO 8402 Age=0,MaxAge
+	    IF (Id.EQ.1) LenProps(Ilen) = LenProps(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Iyr)*EXP(-0.5d0*M(Istk,Ireg,Sex,Age,Iyr))
+	    IF (Id.EQ.2) LenProps(Ilen) = LenProps(Ilen) + Fraclen(Ilen,Istk,Sex,Age,Iyr)*N(Istk,Ireg,Sex,Age,Iyr)*EXP(-1.d0*SurveyTime(Iflt)*ZatAge(Istk,Ireg,Sex,Age,Iyr))
+8402  CONTINUE
+	  !fishery
+	  IF (Id.EQ.1) LenProps(Ilen) = LenProps(Ilen)*SelLen(Iflt,Ilen,Iyr)*RetTilde
+	  !survey
+      !IF (Id.EQ.2) LenProps(Ilen) = LenProps(Ilen)*SurveySel(Iflt,Ilen)
+8401 CONTINUE
+
+	!!normalise to get proportions
+	!LenProps = LenProps/SUM(LenProps(1:Nlen))
+
+	!WRITE(*,'(I4,1x,I2,1x,I2,1x,I1,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,(LenProps(Ilen),Ilen=1,Nlen)
+
+	IF (Diag.EQ.1) WRITE(98,'(I4,1x,I2,1x,I2,1x,I1,1x,I1,1x,I6,1x,200(F6.4,1x))') Iyr,Iflt,Ireg,Sex,II,Id,(LenProps(Ilen),Ilen=1,Nlen)
+
+
+	RETURN
+
+	END
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !	This subroutine finds the length comp proportions for a given fleet/survey, region, sex
 !	equations 1.37, 1.38, 1.39
 
@@ -2120,6 +2173,7 @@
 	!WRITE(*,*) Temp2
 	Temp2 = -1.d0*LOG(1.d0-Temp2)
 	IF (Iyr.EQ.2020) WRITE(*,*) Temp2
+	TrueF(Iyr) = Temp2
 
 	IF (Iyr.EQ.Lyear) THEN
 	 NewDev = XTEMP(2)

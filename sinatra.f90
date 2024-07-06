@@ -401,7 +401,7 @@
 	ENDDO
 	Ftemp(Fyear:Yr2) = -1.d0*LOG(1.d0-Utemp(Fyear:Yr2))
 	OPEN(UNIT=18,FILE='frate.out',POSITION='APPEND')
-	WRITE(18,'(1000(F10.7,1x))') (Ftemp(Iyr),Iyr=Fyear,Yr2)
+	WRITE(18,'(1000(F10.7,1x))') (TrueF(Iyr),Iyr=Fyear,Yr2)   !(Ftemp(Iyr),Iyr=Fyear,Yr2)
 	CLOSE(18)
 
 	RETURN
@@ -986,7 +986,7 @@
 	REAL*8 XNORM
 	REAL*8 loAdjust, hiAdjust
     CHARACTER*100 FLUKE
-    REAL*8 MYVAL(5),LenProps(2000),MuWt,TempLenProps(2000)
+    REAL*8 MYVAL(5),LenProps(2000),MuWt,TempLenProps(2000),LenWts(2000),TotNum
     REAL*8 EstSSB,EstBBMSY,EstBMSY,EstF,EstFMSY,EstFFMSY,EstRecTrend,EstBTrend
     REAL*8 RecACL, RecACLnum
     CHARACTER*2 States(10)
@@ -1070,6 +1070,7 @@
 	!get the Fuse
     Fuse = Ftarg
 	EstQuant(3) = Fuse
+
 
 !	Temp(1) = 0.d0
 !	!get the true OFL
@@ -1183,15 +1184,17 @@
     EstQuant(1) = Temp(1)
     EstQuant(8) = Temp(1)
     !EstQuant(1) now contains the ABC
+    WRITE(*,*) 'ABC ', Temp(1)
 
     !do allocation by rec / comm to get ACL
     ! GF 07/25/19 HARDWIRING REC FLEETS HERE! CHANGE!!! 
     !WRITE(*,*) 'RHLf ', RHLfrac
     RecACL = RHLfrac*Temp(1)
-    !WRITE(*,*) 'RHL ', RHL
+    !WRITE(*,*) 'RecACL ', RecACL
     EstQuant(8) = RecACL
     RHL = RecACL * (pCatch(3)/(pCatch(3)+pCatch(4)))
     EstQuant(6) = RHL
+    WRITE(*,*) 'RHL ', RHL
 
     RECadjust = 1.0
 
@@ -1220,14 +1223,24 @@
     IF (MGtype.GE.6) THEN
       
        !Define RHL in numbers
-       CALL GetLenProps(1,1,3,1,1,Yr2,LenProps)
+       CALL GetLenNums(1,1,3,1,1,Yr2,LenProps)
        !WRITE(*,*) (LenProps(II),II=1,Nlen)
        !WRITE(*,*) (WtLen(II,1,1),II=1,Nlen)
-       MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
+       TotNum = SUM(LenProps(1:Nlen))
+       LenWts(1:Nlen) = WtLen(1:Nlen,1,1)*LenProps(1:Nlen)
+       !WRITE(*,*) (LenWts(II),II=1,Nlen)
+       CALL GetLenNums(1,1,3,1,2,Yr2,LenProps)
+       !WRITE(*,*) (LenProps(II),II=1,Nlen)
+       !WRITE(*,*) (WtLen(II,1,1),II=1,Nlen)
+       TotNum = TotNum + SUM(LenProps(1:Nlen))
+       LenWts(1:Nlen) = LenWts(1:Nlen) + WtLen(1:Nlen,1,2)*LenProps(1:Nlen)
+       !WRITE(*,*) (LenWts(II),II=1,Nlen)
+       MuWt = SUM(LenWts(1:Nlen))/TotNum
+       !MuWt = SUM(WtLen(1:Nlen,1,1)*LenProps(1:Nlen))/SUM(LenProps(1:Nlen))
        !WRITE(*,*) MuWt
        !STOP
        RHLnum = NINT(1000.d0*RHL/MuWt)
-       WRITE(*,*) RHL,RHLnum
+       !WRITE(*,*) RHL,RHLnum
        !STOP
 
        !Define RecACL in numbers
@@ -1251,10 +1264,10 @@
       ScaleFlag = 2
       IF (MGtype.EQ.5) ScaleFlag = 1
 
-
+      WRITE(*,*) 'SSB ', EstSSB
       EstFFMSY = EstF/EstFMSY
       WRITE(*,*) (CurrRegs(II),II=1,3)
-      WRITE(FLUKE,'(A30,1x,I2,1x,F4.1,1x,I3,1x,I2,1x,I1,1x,I10,1x,F7.3,1x,F7.3,1x,F7.3,1x,F7.3,1x,I1)') 'Rscript do_recmeasures_hcr.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1)),MGtype,RegChange,NINT(RHLnum),EstBBMSY,EstFFMSY,EstRecTrend,EstBTrend,CurrBin
+      WRITE(FLUKE,'(A30,1x,I2,1x,F4.1,1x,I3,1x,I2,1x,I1,1x,I10,1x,F7.3,1x,F7.3,1x,F7.3,1x,F7.3,1x,I1,1x,I7)') 'Rscript do_recmeasures_hcr.R',NINT(CurrRegs(2)),CurrRegs(3),NINT(CurrRegs(1)),MGtype,RegChange,NINT(RHLnum),EstBBMSY,EstFFMSY,EstRecTrend,EstBTrend,CurrBin,NINT(EstSSB)
       WRITE(*,*) FLUKE
       CALL SYSTEM(FLUKE)
       OPEN(UNIT=10,FILE='mgmt_regs.out')

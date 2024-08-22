@@ -10,9 +10,9 @@
 !	Dminim.For
 !	Matrix.for
 !   GenData.f90
-!	Sinatra.INC
 !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	Sinatra.INC
 !
 !	works using Compaq Visual Fortran
 !
@@ -108,7 +108,7 @@
 	INCLUDE 'Sinatra.INC'
 
 !   LOCAL VARIABLES
-	INTEGER OpScen(1000),II,Iproj,Yr2,Yr1,Isim,Age,Ilen  !,Nsim
+	INTEGER II,Iproj,Yr2,Yr1,Isim,Age,Ilen  !,Nsim
     CHARACTER*25 OpModFile
 	REAL*8 DUM
 
@@ -5287,7 +5287,7 @@
      OPEN(UNIT=15, FILE='init-natage.inp')
      READ(15,*)
      READ(15,*) (PropFemale(Age),Age=0,MaxAge)
-     DO II=1,Isim2
+     DO II=1,OpScen(Isim2)
       READ(15,*)
      ENDDO
      READ(15,*) (TempVec(Age),Age=0,MaxAge)

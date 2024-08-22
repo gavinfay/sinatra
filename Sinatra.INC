@@ -32,8 +32,9 @@
        INTEGER GrangerI						! temporary global integer
        REAL*8  GrangerV(1:500)				        ! temporary global vector
        REAL*8  GrangerM(1:500,1:500)				! temporary global matrix
+       INTEGER OpScen(1000)                 !operating model scenario to use for each simulation
 
-       COMMON / ControlP / Diag,NoCatch,Nreg,Nstk,LamdaZero,Nflt,Nsurv,FleetRegions,Nlen,LenBins,Fyear,Lyear,ISEEDX,ISEEDZ,GrangerI,GrangerM,GrangerV
+       COMMON / ControlP / Diag,NoCatch,Nreg,Nstk,LamdaZero,Nflt,Nsurv,FleetRegions,Nlen,LenBins,Fyear,Lyear,ISEEDX,ISEEDZ,GrangerI,GrangerM,GrangerV,OpScen
 
 
 

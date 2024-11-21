@@ -221,6 +221,9 @@
     READ(13,*) ISEEDX,ISEEDZ
     CLOSE(13)
 
+    WRITE(*,*) Isim, OpScen(Isim), ISEEDZ
+    !STOP
+
 
 !	OPERATING MODEL PARAMETERS
 	OPEN(UNIT=13,FILE=OpModFile)	
@@ -4833,6 +4836,7 @@
 
 	ISEED = ISEEDZ
 
+    
 
 !	Get the time series of the variance covariance matrix & sigma R's
 	DO 260 Iyr=Yr1,Yr2
@@ -4868,15 +4872,14 @@
 	  Devs=0.d0
       CALL GenMult(Devs,MEANS,ISEED,Nreg,TT,SG,Nreg)
 	  RecDevs(1:Nreg,Iyr) = Devs
-!	  !GF commenting out 2024-06-12 because of weird compilation error, not currently doing anything?
-!	  IF (SUM(CorRecDevs(1:Nreg,1:Nreg)).EQ.(Nreg**2.d0)) THEN!
-!	   Devs=0.d0
-!	   CALL GenMult(XTEMP,0.d0,ISEEDZ,1,1.d0,SG,1)
-!	   DO Ireg=1,Nreg
-!	    RecDevs(Ireg,Iyr) = XTEMP
-!		RecDevs(Ireg,Iyr) = XNORM(5,0.d0,SG,ISEEDZ)
-!	   ENDDO
-!	  ENDIF
+	  IF (SUM(CorRecDevs(1:Nreg,1:Nreg)).EQ.(Nreg**2.d0)) THEN!
+	   !Devs=0.d0
+	   !CALL GenMult(XTEMP,0.d0,ISEED,1,1.d0,SG,1)
+	   DO Ireg=1,Nreg
+	    RecDevs(Ireg,Iyr) = XTEMP
+		RecDevs(Ireg,Iyr) = XNORM(5,0.d0,SG(Ireg),ISEEDZ)
+	   ENDDO
+	  ENDIF
 262	 CONTINUE
 	ENDIF
 
@@ -4905,6 +4908,7 @@
 263	 CONTINUE
 	ENDIF
  
+
 	RETURN
 
 	END

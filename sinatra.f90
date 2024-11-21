@@ -221,9 +221,6 @@
     READ(13,*) ISEEDX,ISEEDZ
     CLOSE(13)
 
-    WRITE(*,*) Isim, OpScen(Isim), ISEEDZ
-    !STOP
-
 
 !	OPERATING MODEL PARAMETERS
 	OPEN(UNIT=13,FILE=OpModFile)	
